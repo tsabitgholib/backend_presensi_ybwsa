@@ -1,0 +1,107 @@
+{
+    "info": {
+        "name": "Presensi YBWSA API",
+        "description": "Dokumentasi API Presensi YBWSA",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Admin Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"admin1\",\n  \"password\": \"password123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/admin/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "admin", "login"]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "body": "{\n  \"token\": \"<jwt_token>\",\n  \"message\": \"Login berhasil\"\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Pegawai Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"nik\": \"1234567890\",\n  \"password\": \"password123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/pegawai/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "pegawai", "login"]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "body": "{\n  \"token\": \"<jwt_token>\",\n  \"message\": \"Login berhasil\"\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Admin",
+            "item": [
+                {
+                    "name": "List Admin",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/admin",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "admin"]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "body": "{\n  \"data\": [{\"id\": 1, \"username\": \"admin1\"}],\n  \"message\": \"List admin berhasil diambil\"\n}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "variable": [
+        { "key": "base_url", "value": "http://localhost:8000" },
+        { "key": "admin_token", "value": "" },
+        { "key": "pegawai_token", "value": "" }
+    ]
+}
