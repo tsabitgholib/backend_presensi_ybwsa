@@ -219,4 +219,69 @@ class PresensiController extends Controller
         }
         return response()->json($history);
     }
+
+    public function rekapPresensiByAdminUnit(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+        $tanggal = $request->query('tanggal');
+        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->get();
+        $result = [];
+        foreach ($pegawais as $pegawai) {
+            $query = Presensi::where('no_ktp', $pegawai->no_ktp);
+            if ($tanggal) {
+                $query->whereDate('waktu', $tanggal);
+            }
+            $presensis = $query->get();
+            $total_hadir = $presensis->whereIn('status', ['absen_masuk', 'absen_pulang', 'terlambat'])->count();
+            $total_tidak_masuk = $presensis->where('status', 'tidak_masuk')->count();
+            $total_izin = $presensis->where('status', 'izin')->count();
+            $total_cuti = $presensis->where('status', 'cuti')->count();
+            $total_sakit = $presensis->where('status', 'sakit')->count();
+            $result[] = [
+                'id' => $pegawai->id,
+                'no_ktp' => $pegawai->no_ktp,
+                'nama' => $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : ''),
+                'total_hadir' => $total_hadir,
+                'total_tidak_masuk' => $total_tidak_masuk,
+                'total_izin' => $total_izin,
+                'total_cuti' => $total_cuti,
+                'total_sakit' => $total_sakit,
+            ];
+        }
+        return response()->json($result);
+    }
+
+    public function historyByAdminUnit(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+        $tanggal = $request->query('tanggal');
+        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->get(['id', 'no_ktp', 'nama_depan', 'nama_belakang']);
+        $no_ktps = $pegawais->pluck('no_ktp');
+        $pegawaiMap = $pegawais->keyBy('no_ktp');
+        $query = Presensi::whereIn('no_ktp', $no_ktps);
+        if ($tanggal) {
+            $query->whereDate('waktu', $tanggal);
+        }
+        $presensis = $query->orderBy('waktu', 'desc')->get();
+        $result = $presensis->map(function($p) use ($pegawaiMap) {
+            $pegawai = $pegawaiMap[$p->no_ktp] ?? null;
+            return [
+                'id' => $p->id,
+                'no_ktp' => $p->no_ktp,
+                'nama' => $pegawai ? $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : '') : null,
+                'status' => $p->status,
+                'waktu' => $p->waktu,
+                'keterangan' => $p->keterangan,
+                'created_at' => $p->created_at,
+                'updated_at' => $p->updated_at,
+            ];
+        });
+        return response()->json($result);
+    }
 }
