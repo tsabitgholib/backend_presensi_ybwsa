@@ -25,7 +25,7 @@ class AuthPegawaiController extends Controller
             'sub' => $pegawai->id,
             'no_ktp' => $pegawai->no_ktp,
             'role' => 'pegawai',
-            'exp' => time() + 3600 // expired 1 jam
+            'exp' => time() + 86400 // expired 1 hari
         ];
         $token = JWT::encode($payload, env('JWT_SECRET'));
 

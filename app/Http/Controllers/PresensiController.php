@@ -137,13 +137,13 @@ class PresensiController extends Controller
             'no_ktp' => $presensi->no_ktp,
             'shift_name' => $shift_name,
             'shift_detail_id' => $presensi->shift_detail_id,
-            'tanggal' => $presensi->waktu->setTimezone('Asia/Jakarta')->format('Y-m-d'),
-            'waktu' => $presensi->waktu->setTimezone('Asia/Jakarta')->format('H:i:s'),
+            'tanggal' => $presensi->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d'),
+            'waktu' => $presensi->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
             'status' => $presensi->status,
             'lokasi' => $presensi->lokasi,
             'keterangan' => $presensi->keterangan,
-            'updated_at' => $presensi->updated_at->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
-            'created_at' => $presensi->created_at->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
+            'updated_at' => $presensi->updated_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+            'created_at' => $presensi->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
             'id' => $presensi->id,
         ]);
     }
@@ -164,8 +164,8 @@ class PresensiController extends Controller
         $keluar = $presensi->whereIn('status', ['absen_pulang', 'pulang_awal'])->last();
         return response()->json([
             'tanggal' => $today,
-            'jam_masuk' => $masuk ? $masuk->waktu->format('H:i:s') : null,
-            'jam_keluar' => $keluar ? $keluar->waktu->format('H:i:s') : null,
+            'jam_masuk' => $masuk ? $masuk->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
+            'jam_keluar' => $keluar ? $keluar->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
             'status_masuk' => $masuk ? $masuk->status : null,
             'status_keluar' => $keluar ? $keluar->status : null,
             'lokasi_masuk' => $masuk ? $masuk->lokasi : null,
@@ -191,8 +191,8 @@ class PresensiController extends Controller
             return response()->json([
                 'hari' => \Carbon\Carbon::parse($tanggal)->locale('id')->isoFormat('dddd'),
                 'tanggal' => $tanggal,
-                'jam_masuk' => $masuk ? $masuk->waktu->setTimezone('Asia/Jakarta')->format('H:i:s') : null,
-                'jam_keluar' => $keluar ? $keluar->waktu->setTimezone('Asia/Jakarta')->format('H:i:s') : null,
+                'jam_masuk' => $masuk ? $masuk->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
+                'jam_keluar' => $keluar ? $keluar->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
                 'status_masuk' => $masuk ? $masuk->status : null,
                 'status_keluar' => $keluar ? $keluar->status : null,
             ]);
@@ -203,7 +203,7 @@ class PresensiController extends Controller
             ->whereBetween(DB::raw('DATE(waktu)'), [$from, $to])
             ->orderBy('waktu')
             ->get()
-            ->groupBy(function($item) { return $item->waktu->setTimezone('Asia/Jakarta')->toDateString(); });
+            ->groupBy(function($item) { return $item->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->toDateString(); });
         $history = [];
         foreach ($presensi as $tanggal => $items) {
             $masuk = $items->whereIn('status', ['absen_masuk', 'terlambat'])->first();
@@ -211,8 +211,8 @@ class PresensiController extends Controller
             $history[] = [
                 'hari' => \Carbon\Carbon::parse($tanggal)->locale('id')->isoFormat('dddd'),
                 'tanggal' => $tanggal,
-                'jam_masuk' => $masuk ? $masuk->waktu->setTimezone('Asia/Jakarta')->format('H:i:s') : null,
-                'jam_keluar' => $keluar ? $keluar->waktu->setTimezone('Asia/Jakarta')->format('H:i:s') : null,
+                'jam_masuk' => $masuk ? $masuk->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
+                'jam_keluar' => $keluar ? $keluar->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
                 'status_masuk' => $masuk ? $masuk->status : null,
                 'status_keluar' => $keluar ? $keluar->status : null,
             ];

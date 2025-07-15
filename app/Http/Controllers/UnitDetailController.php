@@ -47,13 +47,27 @@ class UnitDetailController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'unit_id' => 'required|exists:unit,id',
-  
+        $admin = $request->get('admin');
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
+
+        // Jika admin_unit, unit_id diambil otomatis dari admin
+        if ($admin->role === 'admin_unit') {
+            $request->merge(['unit_id' => $admin->unit_id]);
+        }
+
+        // Jika super_admin, unit_id harus diinput manual
+        $rules = [
             'name' => 'required_without:nama',
             'nama' => 'required_without:name',
             'lokasi' => 'required|array',
-        ]);
+        ];
+        if ($admin->role === 'super_admin') {
+            $rules['unit_id'] = 'required|exists:unit,id';
+        }
+
+        $request->validate($rules);
         try {
             // Ambil 'name' dari 'name' atau 'nama'
             $name = $request->name ?? $request->nama;

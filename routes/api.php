@@ -74,4 +74,9 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::post('presensi', [PresensiController::class, 'store']);
     Route::get('presensi/today', [PresensiController::class, 'today']);
     Route::get('presensi/history', [PresensiController::class, 'history']);
+
+    // Izin, Cuti, Sakit (CRUD, hanya super_admin di controller)
+    Route::apiResource('izin', \App\Http\Controllers\IzinController::class);
+    Route::apiResource('cuti', \App\Http\Controllers\CutiController::class);
+    Route::apiResource('sakit', \App\Http\Controllers\SakitController::class);
 });
