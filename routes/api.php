@@ -75,8 +75,24 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::get('presensi/today', [PresensiController::class, 'today']);
     Route::get('presensi/history', [PresensiController::class, 'history']);
 
-    // Izin, Cuti, Sakit (CRUD, hanya super_admin di controller)
-    Route::apiResource('izin', \App\Http\Controllers\IzinController::class);
-    Route::apiResource('cuti', \App\Http\Controllers\CutiController::class);
-    Route::apiResource('sakit', \App\Http\Controllers\SakitController::class);
+    // Izin
+    Route::get('izin', [\App\Http\Controllers\IzinController::class, 'index']);
+    Route::post('izin/create', [\App\Http\Controllers\IzinController::class, 'store']);
+    Route::get('izin/get-by-id/{id}', [\App\Http\Controllers\IzinController::class, 'show']);
+    Route::put('izin/update/{id}', [\App\Http\Controllers\IzinController::class, 'update']);
+    Route::delete('izin/delete/{id}', [\App\Http\Controllers\IzinController::class, 'destroy']);
+
+    // Cuti
+    Route::get('cuti', [\App\Http\Controllers\CutiController::class, 'index']);
+    Route::post('cuti/create', [\App\Http\Controllers\CutiController::class, 'store']);
+    Route::get('cuti/get-by-id/{id}', [\App\Http\Controllers\CutiController::class, 'show']);
+    Route::put('cuti/update/{id}', [\App\Http\Controllers\CutiController::class, 'update']);
+    Route::delete('cuti/delete/{id}', [\App\Http\Controllers\CutiController::class, 'destroy']);
+
+    // Sakit
+    Route::get('sakit', [\App\Http\Controllers\SakitController::class, 'index']);
+    Route::post('sakit/create', [\App\Http\Controllers\SakitController::class, 'store']);
+    Route::get('sakit/get-by-id/{id}', [\App\Http\Controllers\SakitController::class, 'show']);
+    Route::put('sakit/update/{id}', [\App\Http\Controllers\SakitController::class, 'update']);
+    Route::delete('sakit/delete/{id}', [\App\Http\Controllers\SakitController::class, 'destroy']);
 });
