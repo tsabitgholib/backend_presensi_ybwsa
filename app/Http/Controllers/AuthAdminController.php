@@ -24,8 +24,7 @@ class AuthAdminController extends Controller
         $payload = [
             'sub' => $admin->id,
             'email' => $admin->email,
-            'role' => $admin->role,
-            'exp' => time() + 3600 // expired 1 jam
+            'role' => $admin->role
         ];
         $token = JWT::encode($payload, env('JWT_SECRET'));
 
