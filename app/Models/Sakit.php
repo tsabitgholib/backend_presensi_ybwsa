@@ -10,4 +10,5 @@ class Sakit extends Model
     use HasFactory;
 
     protected $fillable = ['jenis'];
+    protected $table = 'sakit';
 }

@@ -10,4 +10,5 @@ class Cuti extends Model
     use HasFactory;
 
     protected $fillable = ['jenis'];
+    protected $table = 'cuti';
 }

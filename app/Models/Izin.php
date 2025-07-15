@@ -10,4 +10,5 @@ class Izin extends Model
     use HasFactory;
 
     protected $fillable = ['jenis'];
+    protected $table = 'izin';
 }
