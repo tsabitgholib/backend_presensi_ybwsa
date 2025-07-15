@@ -117,4 +117,20 @@ class UnitDetailController extends Controller
             return response()->json(['message' => $e->getMessage()], 400);
         }
     }
+
+    public function show($id)
+    {
+        $detail = UnitDetail::with('unit:id,name')->find($id);
+        if (!$detail) {
+            return response()->json(['message' => 'Unit detail tidak ditemukan'], 404);
+        }
+        return response()->json([
+            'id' => $detail->id,
+            'unit' => $detail->unit->name ?? null,
+            'name' => $detail->name,
+            'lokasi' => $detail->lokasi,
+            'created_at' => $detail->created_at,
+            'updated_at' => $detail->updated_at,
+        ]);
+    }
 } 
