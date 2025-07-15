@@ -74,4 +74,14 @@ class PegawaiController extends Controller
             return response()->json(['message' => $e->getMessage()], 400);
         }
     }
+
+    public function getByUnitIdPresensi(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->with('unitDetail')->get();
+        return response()->json($pegawais);
+    }
 } 

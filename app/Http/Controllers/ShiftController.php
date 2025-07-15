@@ -178,4 +178,19 @@ class ShiftController extends Controller
         $shifts = Shift::where('unit_detail_id', $unit_detail_id)->with('shiftDetail')->get();
         return response()->json($shifts);
     }
+
+    public function assignPegawaiToShiftDetail(Request $request)
+    {
+        $request->validate([
+            'shift_detail_id' => 'required|exists:shift_detail,id',
+            'pegawai_ids' => 'required|array',
+            'pegawai_ids.*' => 'exists:ms_pegawai,id',
+        ]);
+        $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
+            ->update(['shift_detail_id' => $request->shift_detail_id]);
+        return response()->json([
+            'message' => 'Berhasil Menambahkan Pegawai ke Shift ini',
+            'jumlah_pegawai_diupdate' => $count
+        ]);
+    }
 } 

@@ -58,6 +58,7 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::post('pegawai/create', [PegawaiController::class, 'store']);
     Route::put('pegawai/update/{id}', [PegawaiController::class, 'update']);
     Route::delete('pegawai/delete/{id}', [PegawaiController::class, 'destroy']);
+    Route::get('pegawai/by-unit-id-presensi', [PegawaiController::class, 'getByUnitIdPresensi']);
 
     // Shift
     Route::get('shift', [ShiftController::class, 'index']);
@@ -70,6 +71,7 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::put('shift-detail/update/{id}', [ShiftController::class, 'updateDetail']);
     Route::delete('shift-detail/delete/{id}', [ShiftController::class, 'destroyDetail']);
     Route::get('shift-detail/unit-detail/{unit_detail_id}', [ShiftController::class, 'getByUnitDetail']);
+    Route::post('shift-detail/add-pegawai-to-shift-detail', [ShiftController::class, 'assignPegawaiToShiftDetail']);
 
     // Presensi
     Route::post('presensi', [PresensiController::class, 'store']);
@@ -96,4 +98,5 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::get('sakit/get-by-id/{id}', [\App\Http\Controllers\SakitController::class, 'show']);
     Route::put('sakit/update/{id}', [\App\Http\Controllers\SakitController::class, 'update']);
     Route::delete('sakit/delete/{id}', [\App\Http\Controllers\SakitController::class, 'destroy']);
+
 });
