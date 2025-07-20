@@ -17,9 +17,8 @@ class IzinController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index()
     {
-        $this->authorizeSuperAdmin($request);
         return response()->json(Izin::all());
     }
 

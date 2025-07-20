@@ -19,8 +19,8 @@ class MsPegawai extends Model
         return $this->belongsTo(\App\Models\ShiftDetail::class);
     }
 
-    public function unitDetail()
+    public function unit()
     {
-        return $this->belongsTo(\App\Models\UnitDetail::class);
+        return $this->belongsTo(\App\Models\Unit::class);
     }
 } 

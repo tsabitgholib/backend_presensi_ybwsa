@@ -11,6 +11,9 @@ use App\Http\Controllers\UnitDetailController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PegawaiController;
 use App\Http\Controllers\PresensiController;
+use App\Http\Controllers\PengajuanCutiController;
+use App\Http\Controllers\PengajuanSakitController;
+use App\Http\Controllers\PengajuanIzinController;
 
 /*
 |--------------------------------------------------------------------------
@@ -101,4 +104,23 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::put('sakit/update/{id}', [\App\Http\Controllers\SakitController::class, 'update']);
     Route::delete('sakit/delete/{id}', [\App\Http\Controllers\SakitController::class, 'destroy']);
 
+    // Pengajuan Cuti
+    Route::post('/pengajuan-cuti', [PengajuanCutiController::class, 'store']);
+    Route::get('/pengajuan-cuti', [PengajuanCutiController::class, 'index']);
+    Route::post('/pengajuan-cuti/approve/{id}', [PengajuanCutiController::class, 'approve']);
+
+    // Pengajuan Sakit
+    Route::post('/pengajuan-sakit', [PengajuanSakitController::class, 'store']);
+    Route::get('/pengajuan-sakit', [PengajuanSakitController::class, 'index']);
+    Route::post('/pengajuan-sakit/approve/{id}', [PengajuanSakitController::class, 'approve']);
+
+    // Pengajuan Izin
+    Route::post('/pengajuan-izin', [PengajuanIzinController::class, 'store']);
+    Route::get('/pengajuan-izin', [PengajuanIzinController::class, 'index']);
+    Route::post('/pengajuan-izin/approve/{id}', [PengajuanIzinController::class, 'approve']);
+
+    // History pengajuan oleh pegawai
+    Route::get('/pengajuan-izin/history', [PengajuanIzinController::class, 'history']);
+    Route::get('/pengajuan-cuti/history', [PengajuanCutiController::class, 'history']);
+    Route::get('/pengajuan-sakit/history', [PengajuanSakitController::class, 'history']);
 });
