@@ -81,7 +81,7 @@ class PegawaiController extends Controller
         if (!$admin || $admin->role !== 'admin_unit') {
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
-        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->with('unitDetail')->get();
+        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->with('unitDetail')->with('shift_detail')->get();
         return response()->json($pegawais);
     }
 } 
