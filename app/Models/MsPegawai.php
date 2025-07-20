@@ -28,4 +28,5 @@ class MsPegawai extends Model
     {
         return $this->belongsTo(\App\Models\UnitDetail::class);
     }
+
 } 
