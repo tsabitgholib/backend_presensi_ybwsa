@@ -193,4 +193,13 @@ class ShiftController extends Controller
             'jumlah_pegawai_diupdate' => $count
         ]);
     }
+
+    public function getShiftDetailById($id)
+    {
+        $shiftDetail = ShiftDetail::with('shift')->find($id);
+        if (!$shiftDetail) {
+            return response()->json(['message' => 'Shift detail tidak ditemukan'], 404);
+        }
+        return response()->json($shiftDetail);
+    }
 } 
