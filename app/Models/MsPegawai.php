@@ -14,10 +14,11 @@ class MsPegawai extends Model
         'kode_pos', 'no_hp', 'no_telepon', 'no_whatsapp', 'email', 'jabatan', 'password', 'shift_detail_id', 'last_sync'
     ];
 
+
     public function shiftDetail()
-    {
-        return $this->belongsTo(\App\Models\ShiftDetail::class);
-    }
+{
+    return $this->belongsTo(ShiftDetail::class, 'shift_detail_id', 'id');
+}
 
     public function unit()
     {
