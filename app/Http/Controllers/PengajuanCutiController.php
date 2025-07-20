@@ -47,7 +47,7 @@ class PengajuanCutiController extends Controller
     public function approve(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:approved,rejected',
+            'status' => 'required|in:diterima,ditolak',
             'keterangan_admin' => 'nullable|string'
         ]);
 
