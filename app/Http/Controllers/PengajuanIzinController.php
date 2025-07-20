@@ -55,14 +55,14 @@ class PengajuanIzinController extends Controller
 
         $admin = $request->get('admin');
         $unitId = $admin->unit_id;
-        // $isPegawaiInUnit = \App\Models\MsPegawai::where('id', $pengajuan->pegawai_id)
-        //     ->whereHas('unit', function($q) use ($unitId) {
-        //         $q->where('unit_id', $unitId);
-        //     })->exists();
+        $isPegawaiInUnit = \App\Models\MsPegawai::where('id', $pengajuan->pegawai_id)
+            ->whereHas('unit', function($q) use ($unitId) {
+                $q->where('unit_id', $unitId);
+            })->exists();
 
-        // if (!$isPegawaiInUnit) {
-        //     return response()->json(['message' => 'Tidak berhak memproses pengajuan ini'], 403);
-        // }
+        if (!$isPegawaiInUnit) {
+            return response()->json(['message' => 'Tidak berhak memproses pengajuan ini'], 403);
+        }
 
         $pengajuan->status = $request->status;
         $pengajuan->admin_unit_id = $admin->id;
