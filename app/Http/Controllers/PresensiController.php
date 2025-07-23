@@ -14,14 +14,17 @@ use Illuminate\Support\Facades\DB;
 class PresensiController extends Controller
 {
     // Fungsi point-in-polygon sederhana
-    private function isPointInPolygon($point, $polygon) {
+    private function isPointInPolygon($point, $polygon)
+    {
         $x = $point[0];
         $y = $point[1];
         $inside = false;
         $n = count($polygon);
         for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
-            $xi = $polygon[$i][0]; $yi = $polygon[$i][1];
-            $xj = $polygon[$j][0]; $yj = $polygon[$j][1];
+            $xi = $polygon[$i][0];
+            $yi = $polygon[$i][1];
+            $xj = $polygon[$j][0];
+            $yj = $polygon[$j][1];
             $intersect = (($yi > $y) != ($yj > $y)) &&
                 ($x < ($xj - $xi) * ($y - $yi) / (($yj - $yi) ?: 1e-10) + $xi);
             if ($intersect) $inside = !$inside;
@@ -57,8 +60,8 @@ class PresensiController extends Controller
             return response()->json(['message' => 'Lokasi di luar area'], 400);
         }
         // Validasi waktu presensi
-        $masukKey = $hari.'_masuk';
-        $pulangKey = $hari.'_pulang';
+        $masukKey = $hari . '_masuk';
+        $pulangKey = $hari . '_pulang';
         $jamMasuk = $shiftDetail->$masukKey;
         $jamPulang = $shiftDetail->$pulangKey;
         $tolMasuk = $shiftDetail->toleransi_terlambat ?? 0;
@@ -203,7 +206,9 @@ class PresensiController extends Controller
             ->whereBetween(DB::raw('DATE(waktu)'), [$from, $to])
             ->orderBy('waktu')
             ->get()
-            ->groupBy(function($item) { return $item->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->toDateString(); });
+            ->groupBy(function ($item) {
+                return $item->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->toDateString();
+            });
         $history = [];
         foreach ($presensi as $tanggal => $items) {
             $masuk = $items->whereIn('status', ['absen_masuk', 'terlambat'])->first();
@@ -237,9 +242,27 @@ class PresensiController extends Controller
             $presensis = $query->get();
             $total_hadir = $presensis->whereIn('status', ['absen_masuk', 'absen_pulang', 'terlambat'])->count();
             $total_tidak_masuk = $presensis->where('status', 'tidak_masuk')->count();
-            $total_izin = $presensis->where('status', 'izin')->count();
-            $total_cuti = $presensis->where('status', 'cuti')->count();
-            $total_sakit = $presensis->where('status', 'sakit')->count();
+
+            // Hitung total izin, cuti, sakit dari tabel pengajuan masing-masing dengan status 'diterima'
+            $total_izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->when($tanggal, function ($q) use ($tanggal) {
+                    $q->whereDate('tanggal_mulai', '<=', $tanggal)
+                        ->whereDate('tanggal_selesai', '>=', $tanggal);
+                })->count();
+            $total_cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->when($tanggal, function ($q) use ($tanggal) {
+                    $q->whereDate('tanggal_mulai', '<=', $tanggal)
+                        ->whereDate('tanggal_selesai', '>=', $tanggal);
+                })->count();
+            $total_sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->when($tanggal, function ($q) use ($tanggal) {
+                    $q->whereDate('tanggal_mulai', '<=', $tanggal)
+                        ->whereDate('tanggal_selesai', '>=', $tanggal);
+                })->count();
+
             $result[] = [
                 'id' => $pegawai->id,
                 'no_ktp' => $pegawai->no_ktp,
@@ -269,7 +292,7 @@ class PresensiController extends Controller
             $query->whereDate('waktu', $tanggal);
         }
         $presensis = $query->orderBy('waktu', 'desc')->get();
-        $result = $presensis->map(function($p) use ($pegawaiMap) {
+        $result = $presensis->map(function ($p) use ($pegawaiMap) {
             $pegawai = $pegawaiMap[$p->no_ktp] ?? null;
             return [
                 'id' => $p->id,
