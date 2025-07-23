@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Admin;
 use App\Models\UnitDetail;
+use App\Models\Shift;
 
 class Unit extends Model
 {
@@ -23,4 +24,9 @@ class Unit extends Model
     {
         return $this->hasMany(UnitDetail::class);
     }
-} 
+
+    public function shifts()
+    {
+        return $this->hasMany(Shift::class);
+    }
+}

@@ -73,7 +73,7 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::post('shift-detail/create', [ShiftController::class, 'storeDetail']);
     Route::put('shift-detail/update/{id}', [ShiftController::class, 'updateDetail']);
     Route::delete('shift-detail/delete/{id}', [ShiftController::class, 'destroyDetail']);
-    Route::get('shift-detail/unit-detail/{unit_detail_id}', [ShiftController::class, 'getByUnitDetail']);
+    Route::get('shift-detail/unit/{unit_id}', [ShiftController::class, 'getByUnit']);
     Route::post('shift-detail/add-pegawai-to-shift-detail', [ShiftController::class, 'assignPegawaiToShiftDetail']);
     Route::get('shift-detail/get-by-id/{id}', [ShiftController::class, 'getShiftDetailById']);
 

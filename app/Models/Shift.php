@@ -7,15 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 class Shift extends Model
 {
     protected $table = 'shift';
-    protected $fillable = ['name', 'unit_detail_id'];
+    protected $fillable = ['name', 'unit_id'];
 
-    public function unitDetail()
+    public function unit()
     {
-        return $this->belongsTo(UnitDetail::class);
+        return $this->belongsTo(Unit::class);
     }
 
     public function shiftDetail()
     {
         return $this->hasOne(ShiftDetail::class);
     }
-} 
+}

@@ -13,21 +13,18 @@ class ShiftController extends Controller
     {
         $admin = $request->get('admin');
         if ($admin && $admin->role === 'admin_unit') {
-            // Ambil semua unit_detail_id dari unit admin
-            $unit = $admin->unit;
-            $unitDetailIds = $unit ? $unit->unitDetails->pluck('id') : [];
-            $query = Shift::with(['unitDetail.unit', 'shiftDetail'])
-                ->whereIn('unit_detail_id', $unitDetailIds);
+            $unitId = $admin->unit_id;
+            $query = Shift::with(['unit', 'shiftDetail'])
+                ->where('unit_id', $unitId);
         } else {
             // super_admin atau tidak ada admin, tampilkan semua
-            $query = Shift::with(['unitDetail.unit', 'shiftDetail']);
+            $query = Shift::with(['unit', 'shiftDetail']);
         }
         $data = $query->get()->map(function ($shift) {
             return [
                 'id' => $shift->id,
                 'name' => $shift->name,
-                'unit_name' => $shift->unitDetail->unit->name ?? null,
-                'unit_detail_name' => $shift->unitDetail->name ?? null,
+                'unit_name' => $shift->unit->name ?? null,
                 'created_at' => $shift->created_at,
                 'updated_at' => $shift->updated_at,
                 'shift_detail' => $shift->shiftDetail
@@ -42,24 +39,21 @@ class ShiftController extends Controller
     {
         $request->validate([
             'name' => 'required',
-            'unit_detail_id' => 'required'
         ]);
         // Ambil admin yang sedang login
         $admin = $request->get('admin');
         if (!$admin) {
             return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
-        // // Ambil unit_detail_id pertama dari unit admin
-        // $unitDetail = $admin->unit
-        //     ? $admin->unit->unitDetails()->first()
-        //     : null;
-        // if (!$unitDetail) {
-        //     return response()->json(['message' => 'Unit detail tidak ditemukan untuk admin ini'], 400);
-        // }
+        // Ambil unit_id dari admin
+        $unitId = $admin->unit_id;
+        if (!$unitId) {
+            return response()->json(['message' => 'Unit tidak ditemukan untuk admin ini'], 400);
+        }
         try {
             $shift = Shift::create([
                 'name' => $request->name,
-                'unit_detail_id' => $request->unit_detail_id,
+                'unit_id' => $unitId,
             ]);
             return response()->json($shift);
         } catch (\Exception $e) {
@@ -81,16 +75,14 @@ class ShiftController extends Controller
         if (!$admin) {
             return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
-        // Ambil unit_detail_id pertama dari unit admin
-        $unitDetail = $admin->unit
-            ? $admin->unit->unitDetails()->first()
-            : null;
-        if (!$unitDetail) {
-            return response()->json(['message' => 'Unit detail tidak ditemukan untuk admin ini'], 400);
+        // Ambil unit_id dari admin
+        $unitId = $admin->unit_id;
+        if (!$unitId) {
+            return response()->json(['message' => 'Unit tidak ditemukan untuk admin ini'], 400);
         }
         try {
             $data = $request->only(['name']);
-            $data['unit_detail_id'] = $unitDetail->id;
+            $data['unit_id'] = $unitId;
             $shift->update($data);
             return response()->json($shift);
         } catch (\Exception $e) {
@@ -197,9 +189,9 @@ class ShiftController extends Controller
         }
     }
 
-    public function getByUnitDetail($unit_detail_id)
+    public function getByUnit($unit_id)
     {
-        $shifts = Shift::where('unit_detail_id', $unit_detail_id)->with('shiftDetail')->get();
+        $shifts = Shift::where('unit_id', $unit_id)->with('shiftDetail')->get();
         return response()->json($shifts);
     }
 

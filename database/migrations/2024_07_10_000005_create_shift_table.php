@@ -11,10 +11,10 @@ return new class extends Migration
         Schema::create('shift', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->unsignedBigInteger('unit_detail_id');
+            $table->unsignedBigInteger('unit_id');
             $table->timestamps();
 
-            $table->foreign('unit_detail_id')->references('id')->on('unit_detail')->onDelete('cascade');
+            $table->foreign('unit_id')->references('id')->on('unit')->onDelete('cascade');
         });
     }
 
