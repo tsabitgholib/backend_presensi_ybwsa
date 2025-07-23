@@ -29,7 +29,7 @@ class PegawaiController extends Controller
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'unit_detail_id' => $request->unit_detail_id,
-            ] + $request->except(['no_ktp','nama_depan','email','password','unit_detail_id']));
+            ] + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id']));
             return response()->json($pegawai);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
@@ -54,7 +54,7 @@ class PegawaiController extends Controller
             if ($request->filled('password')) {
                 $data['password'] = Hash::make($request->password);
             }
-            $pegawai->update($data + $request->except(['no_ktp','nama_depan','email','password','unit_detail_id']));
+            $pegawai->update($data + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id']));
             return response()->json($pegawai);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
@@ -75,13 +75,29 @@ class PegawaiController extends Controller
         }
     }
 
-    public function getByUnitIdPresensi(Request $request)
+    public function getByUnitDetailIdPresensi(Request $request)
     {
         $admin = $request->get('admin');
         if (!$admin || $admin->role !== 'admin_unit') {
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
-        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->with('unitDetail')->get();
+        $unitDetailIds = \App\Models\UnitDetail::where('unit_id', $admin->unit_id)->pluck('id');
+        $pegawais = MsPegawai::whereIn('unit_detail_id_presensi', $unitDetailIds)->with('unitDetail')->get();
         return response()->json($pegawais);
     }
-} 
+
+    public function assignPegawaiToUnitPresensi(Request $request)
+    {
+        $request->validate([
+            'unit_id' => 'required|exists:unit,id',
+            'pegawai_ids' => 'required|array',
+            'pegawai_ids.*' => 'exists:ms_pegawai,id',
+        ]);
+        $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
+            ->update(['unit_id_presensi' => $request->unit_id]);
+        return response()->json([
+            'message' => 'Berhasil menambahkan pegawai ke unit presensi',
+            'jumlah_pegawai_diupdate' => $count
+        ]);
+    }
+}
