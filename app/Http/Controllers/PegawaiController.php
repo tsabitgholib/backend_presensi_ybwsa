@@ -75,18 +75,21 @@ class PegawaiController extends Controller
         }
     }
 
-    public function getByUnitDetailIdPresensi(Request $request)
+    public function getByUnitIdPresensi(Request $request)
     {
         $admin = $request->get('admin');
         if (!$admin || $admin->role !== 'admin_unit') {
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
-        $unitDetailIds = \App\Models\UnitDetail::where('unit_id', $admin->unit_id)->pluck('id');
-        $pegawais = MsPegawai::whereIn('unit_detail_id_presensi', $unitDetailIds)->with('unitDetail')->get();
+        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->with('unitDetail')->get();
         return response()->json($pegawais);
     }
 
-    public function assignPegawaiToUnitPresensi(Request $request)
+    /**
+     * Tambahkan pegawai ke unit presensi tertentu.
+     * Request: { unit_id: int, pegawai_ids: array of int }
+     */
+    public function assignToUnitPresensi(Request $request)
     {
         $request->validate([
             'unit_id' => 'required|exists:unit,id',
