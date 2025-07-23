@@ -231,7 +231,9 @@ class PresensiController extends Controller
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
         $tanggal = $request->query('tanggal');
-        $pegawais = MsPegawai::where('unit_detail_id_presensi', $admin->unit_id)->get();
+        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
+            $q->where('unit_id', $admin->unit_id);
+        })->get();
         $result = [];
         foreach ($pegawais as $pegawai) {
             $query = Presensi::where('no_ktp', $pegawai->no_ktp);
@@ -283,7 +285,9 @@ class PresensiController extends Controller
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
         $tanggal = $request->query('tanggal');
-        $pegawais = MsPegawai::where('unit_detail_id_presensi', $admin->unit_id)->get(['id', 'no_ktp', 'nama_depan', 'nama_belakang']);
+        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
+            $q->where('unit_id', $admin->unit_id);
+        })->get(['id', 'no_ktp', 'nama_depan', 'nama_belakang']);
         $no_ktps = $pegawais->pluck('no_ktp');
         $pegawaiMap = $pegawais->keyBy('no_ktp');
         $query = Presensi::whereIn('no_ktp', $no_ktps);
