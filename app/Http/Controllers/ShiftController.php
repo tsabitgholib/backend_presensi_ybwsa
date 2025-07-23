@@ -9,12 +9,20 @@ use App\Models\ShiftDetail;
 class ShiftController extends Controller
 {
     // CRUD Shift
-    public function index()
+    public function index(Request $request)
     {
-        $data = Shift::with([
-            'unitDetail.unit', 
-            'shiftDetail'
-        ])->get()->map(function ($shift) {
+        $admin = $request->get('admin');
+        if ($admin && $admin->role === 'admin_unit') {
+            // Ambil semua unit_detail_id dari unit admin
+            $unit = $admin->unit;
+            $unitDetailIds = $unit ? $unit->unitDetails->pluck('id') : [];
+            $query = Shift::with(['unitDetail.unit', 'shiftDetail'])
+                ->whereIn('unit_detail_id', $unitDetailIds);
+        } else {
+            // super_admin atau tidak ada admin, tampilkan semua
+            $query = Shift::with(['unitDetail.unit', 'shiftDetail']);
+        }
+        $data = $query->get()->map(function ($shift) {
             return [
                 'id' => $shift->id,
                 'name' => $shift->name,
@@ -25,7 +33,6 @@ class ShiftController extends Controller
                 'shift_detail' => $shift->shiftDetail
             ];
         });
-
         return response()->json($data);
     }
 
@@ -115,14 +122,22 @@ class ShiftController extends Controller
         try {
             $data = $request->only([
                 'shift_id',
-                'senin_masuk', 'senin_pulang',
-                'selasa_masuk', 'selasa_pulang',
-                'rabu_masuk', 'rabu_pulang',
-                'kamis_masuk', 'kamis_pulang',
-                'jumat_masuk', 'jumat_pulang',
-                'sabtu_masuk', 'sabtu_pulang',
-                'minggu_masuk', 'minggu_pulang',
-                'toleransi_terlambat', 'toleransi_pulang'
+                'senin_masuk',
+                'senin_pulang',
+                'selasa_masuk',
+                'selasa_pulang',
+                'rabu_masuk',
+                'rabu_pulang',
+                'kamis_masuk',
+                'kamis_pulang',
+                'jumat_masuk',
+                'jumat_pulang',
+                'sabtu_masuk',
+                'sabtu_pulang',
+                'minggu_masuk',
+                'minggu_pulang',
+                'toleransi_terlambat',
+                'toleransi_pulang'
             ]);
             $detail = ShiftDetail::create($data);
             return response()->json($detail);
@@ -143,14 +158,22 @@ class ShiftController extends Controller
         ]);
         try {
             $data = $request->only([
-                'senin_masuk', 'senin_pulang',
-                'selasa_masuk', 'selasa_pulang',
-                'rabu_masuk', 'rabu_pulang',
-                'kamis_masuk', 'kamis_pulang',
-                'jumat_masuk', 'jumat_pulang',
-                'sabtu_masuk', 'sabtu_pulang',
-                'minggu_masuk', 'minggu_pulang',
-                'toleransi_terlambat', 'toleransi_pulang'
+                'senin_masuk',
+                'senin_pulang',
+                'selasa_masuk',
+                'selasa_pulang',
+                'rabu_masuk',
+                'rabu_pulang',
+                'kamis_masuk',
+                'kamis_pulang',
+                'jumat_masuk',
+                'jumat_pulang',
+                'sabtu_masuk',
+                'sabtu_pulang',
+                'minggu_masuk',
+                'minggu_pulang',
+                'toleransi_terlambat',
+                'toleransi_pulang'
             ]);
             $detail->update($data);
             return response()->json($detail);
@@ -202,4 +225,4 @@ class ShiftController extends Controller
         }
         return response()->json($shiftDetail);
     }
-} 
+}
