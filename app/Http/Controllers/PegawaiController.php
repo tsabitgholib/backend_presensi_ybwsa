@@ -20,7 +20,7 @@ class PegawaiController extends Controller
             'nama_depan' => 'required',
             'email' => 'required|email|unique:ms_pegawai,email',
             'password' => 'required|min:6',
-            'unit_detail_id' => 'required|exists:unit_detail,id',
+            'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
         ]);
         try {
             $pegawai = MsPegawai::create([
@@ -28,8 +28,8 @@ class PegawaiController extends Controller
                 'nama_depan' => $request->nama_depan,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
-                'unit_detail_id' => $request->unit_detail_id,
-            ] + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id']));
+                'unit_detail_id_presensi' => $request->unit_detail_id_presensi,
+            ] + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id_presensi']));
             return response()->json($pegawai);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
@@ -47,14 +47,14 @@ class PegawaiController extends Controller
             'nama_depan' => 'sometimes|required',
             'email' => 'sometimes|required|email|unique:ms_pegawai,email,' . $id,
             'password' => 'nullable|min:6',
-            'unit_detail_id' => 'sometimes|required|exists:unit_detail,id',
+            'unit_detail_id_presensi' => 'sometimes|required|exists:unit_detail,id',
         ]);
         try {
-            $data = $request->only(['no_ktp', 'nama_depan', 'email', 'unit_detail_id']);
+            $data = $request->only(['no_ktp', 'nama_depan', 'email', 'unit_detail_id_presensi']);
             if ($request->filled('password')) {
                 $data['password'] = Hash::make($request->password);
             }
-            $pegawai->update($data + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id']));
+            $pegawai->update($data + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id_presensi']));
             return response()->json($pegawai);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
