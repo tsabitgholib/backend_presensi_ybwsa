@@ -24,9 +24,4 @@ class UnitDetail extends Model
     {
         return $this->hasMany(MsPegawai::class);
     }
-
-    public function shifts()
-    {
-        return $this->hasMany(Shift::class);
-    }
-} 
+}
