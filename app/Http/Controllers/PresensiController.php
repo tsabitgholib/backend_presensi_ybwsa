@@ -48,9 +48,9 @@ class PresensiController extends Controller
         if (!$shiftDetail) {
             return response()->json(['message' => 'Shift detail tidak ditemukan untuk pegawai ini'], 400);
         }
-        // Ambil shift dan unit_detail
-        $shift = $shiftDetail->shift;
-        $unitDetail = $shift ? $shift->unitDetail : null;
+        // // Ambil shift dan unit_detail
+        // $shift = $shiftDetail->shift;
+        $unitDetail = $pegawai->unitDetailPresensi;
         if (!$unitDetail) {
             return response()->json(['message' => 'Unit detail tidak ditemukan'], 400);
         }
