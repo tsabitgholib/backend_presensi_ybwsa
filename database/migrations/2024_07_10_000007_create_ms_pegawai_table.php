@@ -43,7 +43,7 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('jabatan')->nullable();
             $table->string('password');
-            $table->unsignedBigInteger('unit_detail_id');
+            $table->unsignedBigInteger('unit_detail_id_presensi');
             $table->timestamps();
             $table->timestamp('last_sync')->nullable();
 

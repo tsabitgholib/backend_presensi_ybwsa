@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -37,8 +38,8 @@ class PengajuanIzinController extends Controller
 
         $pengajuan = PengajuanIzin::query()
             ->join('ms_pegawai', 'pengajuan_izin.pegawai_id', '=', 'ms_pegawai.id')
-            ->join('unit', 'unit.id', '=', 'ms_pegawai.unit_id_presensi')
-            ->where('ms_pegawai.unit_id_presensi', $unitId)
+            ->join('unit_detail', 'unit_detail.id', '=', 'ms_pegawai.unit_detail_id_presensi')
+            ->where('unit_detail.unit_id', $unitId)
             ->select('pengajuan_izin.*')->paginate(10);
 
         return response()->json($pengajuan);
@@ -83,4 +84,4 @@ class PengajuanIzinController extends Controller
             ->get();
         return response()->json($history);
     }
-} 
+}

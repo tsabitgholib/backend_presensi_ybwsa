@@ -10,7 +10,7 @@ class PegawaiController extends Controller
 {
     public function index()
     {
-        return response()->json(MsPegawai::with('unitDetail')->paginate(20));
+        return response()->json(MsPegawai::with('unitDetailPresensi')->paginate(20));
     }
 
     public function store(Request $request)
@@ -81,25 +81,27 @@ class PegawaiController extends Controller
         if (!$admin || $admin->role !== 'admin_unit') {
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
-        $pegawais = MsPegawai::where('unit_id_presensi', $admin->unit_id)->with('unitDetail')->get();
+        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
+            $q->where('unit_id', $admin->unit_id);
+        })->with('unitDetailPresensi')->get();
         return response()->json($pegawais);
     }
 
     /**
-     * Tambahkan pegawai ke unit presensi tertentu.
-     * Request: { unit_id: int, pegawai_ids: array of int }
+     * Tambahkan pegawai ke unit detail presensi tertentu.
+     * Request: { unit_detail_id_presensi: int, pegawai_ids: array of int }
      */
     public function assignToUnitPresensi(Request $request)
     {
         $request->validate([
-            'unit_id' => 'required|exists:unit,id',
+            'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
             'pegawai_ids' => 'required|array',
             'pegawai_ids.*' => 'exists:ms_pegawai,id',
         ]);
         $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
-            ->update(['unit_id_presensi' => $request->unit_id]);
+            ->update(['unit_detail_id_presensi' => $request->unit_detail_id_presensi]);
         return response()->json([
-            'message' => 'Berhasil menambahkan pegawai ke unit presensi',
+            'message' => 'Berhasil menambahkan pegawai ke unit detail presensi',
             'jumlah_pegawai_diupdate' => $count
         ]);
     }
