@@ -42,23 +42,24 @@ class ShiftController extends Controller
     {
         $request->validate([
             'name' => 'required',
+            'shift_id' => 'required'
         ]);
         // Ambil admin yang sedang login
         $admin = $request->get('admin');
         if (!$admin) {
             return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
-        // Ambil unit_detail_id pertama dari unit admin
-        $unitDetail = $admin->unit
-            ? $admin->unit->unitDetails()->first()
-            : null;
-        if (!$unitDetail) {
-            return response()->json(['message' => 'Unit detail tidak ditemukan untuk admin ini'], 400);
-        }
+        // // Ambil unit_detail_id pertama dari unit admin
+        // $unitDetail = $admin->unit
+        //     ? $admin->unit->unitDetails()->first()
+        //     : null;
+        // if (!$unitDetail) {
+        //     return response()->json(['message' => 'Unit detail tidak ditemukan untuk admin ini'], 400);
+        // }
         try {
             $shift = Shift::create([
                 'name' => $request->name,
-                'unit_detail_id' => $unitDetail->id,
+                'unit_detail_id' => $request->shift_id,
             ]);
             return response()->json($shift);
         } catch (\Exception $e) {
