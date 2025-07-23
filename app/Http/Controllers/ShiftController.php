@@ -42,7 +42,7 @@ class ShiftController extends Controller
     {
         $request->validate([
             'name' => 'required',
-            'shift_id' => 'required'
+            'unit_detail_id' => 'required'
         ]);
         // Ambil admin yang sedang login
         $admin = $request->get('admin');
@@ -59,7 +59,7 @@ class ShiftController extends Controller
         try {
             $shift = Shift::create([
                 'name' => $request->name,
-                'unit_detail_id' => $request->shift_id,
+                'unit_detail_id' => $request->unit_detail_id,
             ]);
             return response()->json($shift);
         } catch (\Exception $e) {
