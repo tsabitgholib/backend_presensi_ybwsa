@@ -62,6 +62,9 @@ class PresensiController extends Controller
         if (!$this->isPointInPolygon($request->lokasi, $polygon)) {
             return response()->json(['message' => 'Lokasi di luar area'], 400);
         }
+        // Cek apakah hari ini adalah hari libur
+        $isHariLibur = \App\Models\HariLibur::isHariLibur($unitDetail->id, $now->toDateString());
+
         // Validasi waktu presensi
         $masukKey = $hari . '_masuk';
         $pulangKey = $hari . '_pulang';
@@ -69,6 +72,48 @@ class PresensiController extends Controller
         $jamPulang = $shiftDetail->$pulangKey;
         $tolMasuk = $shiftDetail->toleransi_terlambat ?? 0;
         $tolPulang = $shiftDetail->toleransi_pulang ?? 0;
+
+        // Jika hari libur, otomatis set status hadir
+        // if ($isHariLibur) {
+        //     $status = 'hadir_hari_libur';
+        //     $keterangan = 'Hari Libur';
+
+        //     // Cek apakah sudah ada presensi hari ini
+        //     $presensiHariIni = Presensi::where('no_ktp', $pegawai->no_ktp)
+        //         ->whereDate('waktu', $now->toDateString())
+        //         ->get();
+
+        //     if ($presensiHariIni->where('status', 'hadir_hari_libur')->count() > 0) {
+        //         return response()->json(['message' => 'Sudah ada presensi hari libur untuk hari ini'], 400);
+        //     }
+
+        //     // Simpan presensi hari libur
+        //     $presensi = Presensi::create([
+        //         'no_ktp' => $pegawai->no_ktp,
+        //         'shift_id' => $shiftDetail->shift_id,
+        //         'shift_detail_id' => $shiftDetail->id,
+        //         'waktu' => $now,
+        //         'status' => $status,
+        //         'lokasi' => $request->lokasi,
+        //         'keterangan' => $keterangan,
+        //     ]);
+
+        //     $shift_name = $shiftDetail->shift ? $shiftDetail->shift->name : null;
+        //     return response()->json([
+        //         'no_ktp' => $presensi->no_ktp,
+        //         'shift_name' => $shift_name,
+        //         'shift_detail_id' => $presensi->shift_detail_id,
+        //         'tanggal' => $presensi->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d'),
+        //         'waktu' => $presensi->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
+        //         'status' => $presensi->status,
+        //         'lokasi' => $presensi->lokasi,
+        //         'keterangan' => $presensi->keterangan,
+        //         'updated_at' => $presensi->updated_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+        //         'created_at' => $presensi->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+        //         'id' => $presensi->id,
+        //     ]);
+        // }
+
         if (!$jamMasuk && !$jamPulang) {
             return response()->json(['message' => 'Hari ini libur, tidak ada jam masuk/pulang'], 400);
         }
@@ -220,7 +265,7 @@ class PresensiController extends Controller
             ->whereDate('waktu', $today)
             ->orderBy('waktu')
             ->get();
-        $masuk = $presensi->whereIn('status', ['absen_masuk', 'terlambat'])->first();
+        $masuk = $presensi->whereIn('status', ['absen_masuk', 'terlambat', 'hadir_hari_libur'])->first();
         if (!$masuk) {
             $masuk = $presensi->whereIn('status', ['tidak_absen_masuk', 'tidak_masuk'])->first();
         }
@@ -252,7 +297,7 @@ class PresensiController extends Controller
                 ->whereDate('waktu', $tanggal)
                 ->orderBy('waktu')
                 ->get();
-            $masuk = $presensi->whereIn('status', ['absen_masuk', 'terlambat'])->first();
+            $masuk = $presensi->whereIn('status', ['absen_masuk', 'terlambat', 'hadir_hari_libur'])->first();
             if (!$masuk) {
                 $masuk = $presensi->whereIn('status', ['tidak_absen_masuk', 'tidak_masuk'])->first();
             }
@@ -317,7 +362,7 @@ class PresensiController extends Controller
                 $query->whereDate('waktu', $tanggal);
             }
             $presensis = $query->get();
-            $total_hadir = $presensis->whereIn('status', ['absen_masuk', 'absen_pulang', 'terlambat'])->count();
+            $total_hadir = $presensis->whereIn('status', ['absen_masuk', 'absen_pulang', 'terlambat', 'hadir_hari_libur'])->count();
             $total_tidak_masuk = $presensis->where('status', 'tidak_masuk')->count();
 
             // Hitung total izin, cuti, sakit dari tabel pengajuan masing-masing dengan status 'diterima'

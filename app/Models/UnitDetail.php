@@ -24,4 +24,9 @@ class UnitDetail extends Model
     {
         return $this->hasMany(MsPegawai::class, 'unit_detail_id_presensi');
     }
+
+    public function hariLibur()
+    {
+        return $this->hasMany(HariLibur::class);
+    }
 }

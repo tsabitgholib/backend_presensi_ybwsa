@@ -79,6 +79,74 @@ Backend API untuk sistem presensi YBWSA dengan integrasi Android/iOS.
 2. **Android/iOS tidak mendapatkan informasi lokasi yang spesifik** untuk validasi di sisi client
 3. **Relasi tidak dimuat dengan benar** di middleware dan controller
 
+## Fitur Hari Libur
+
+### Konsep Hari Libur
+- Masing-masing admin unit dapat melakukan setting hari libur dengan keterangannya
+- Hari libur nempel ke masing-masing unit detail pada masing-masing unitnya
+- Jika pada hari tersebut libur, pegawai akan otomatis ter-flagging hadir/masuk semua dengan keterangan "Hari Libur"
+- Status presensi hari libur: `hadir_hari_libur`
+
+### Cara Kerja Hari Libur
+1. **Admin Unit** mengatur hari libur untuk unit detail tertentu
+2. **Pegawai** melakukan presensi pada hari libur
+3. **Sistem** otomatis memberikan status `hadir_hari_libur` dengan keterangan "Hari Libur"
+4. **Pegawai** hanya perlu presensi sekali per hari libur
+
+### Endpoint untuk Admin Unit
+```javascript
+// Tambah hari libur
+const response = await fetch('/api/hari-libur', {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${admin_token}`
+  },
+  body: JSON.stringify({
+    unit_detail_id: 1,
+    tanggal: '2024-01-15',
+    keterangan: 'Hari Raya Idul Fitri'
+  })
+});
+
+// Tambah hari libur untuk multiple unit detail
+const response = await fetch('/api/hari-libur/multiple', {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${admin_token}`
+  },
+  body: JSON.stringify({
+    unit_detail_ids: [1, 2, 3],
+    tanggal: '2024-01-15',
+    keterangan: 'Hari Raya Idul Fitri'
+  })
+});
+```
+
+### Endpoint untuk Pegawai
+```javascript
+// Cek apakah hari ini libur
+const response = await fetch('/api/pegawai/cek-hari-libur', {
+  headers: { 'Authorization': `Bearer ${pegawai_token}` }
+});
+
+const result = await response.json();
+// Response: { is_hari_libur: true, tanggal: '2024-01-15', keterangan: 'Hari Raya Idul Fitri' }
+
+// Presensi pada hari libur (otomatis status hadir_hari_libur)
+const presensiResponse = await fetch('/api/presensi', {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${pegawai_token}`
+  },
+  body: JSON.stringify({
+    lokasi: [latitude, longitude]
+  })
+});
+```
+
 ### Perubahan yang Dilakukan
 
 #### 1. Perbaikan Endpoint `pegawai/me`
@@ -291,6 +359,15 @@ php artisan serve
 -   **POST** `/api/presensi` - Lakukan presensi
 -   **GET** `/api/presensi/today` - Presensi hari ini
 -   **GET** `/api/presensi/history` - History presensi
+
+### Hari Libur
+
+-   **GET** `/api/hari-libur` - Daftar hari libur (admin unit)
+-   **POST** `/api/hari-libur` - Tambah hari libur (admin unit)
+-   **PUT** `/api/hari-libur/{id}` - Update hari libur (admin unit)
+-   **DELETE** `/api/hari-libur/{id}` - Hapus hari libur (admin unit)
+-   **POST** `/api/hari-libur/multiple` - Tambah hari libur untuk multiple unit detail (admin unit)
+-   **GET** `/api/pegawai/cek-hari-libur` - Cek apakah hari ini libur (pegawai)
 
 ## Testing
 

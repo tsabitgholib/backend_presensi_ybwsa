@@ -174,4 +174,46 @@ class PegawaiController extends Controller
             ] : null
         ]);
     }
+
+    /**
+     * Cek apakah hari ini adalah hari libur untuk pegawai
+     */
+    public function cekHariLibur(Request $request)
+    {
+        $pegawai = $request->get('pegawai');
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
+        }
+
+        // Load relasi yang diperlukan
+        $pegawai->load(['unitDetailPresensi']);
+
+        if (!$pegawai->unitDetailPresensi) {
+            return response()->json(['message' => 'Lokasi presensi tidak ditemukan'], 404);
+        }
+
+        $today = \Carbon\Carbon::now('Asia/Jakarta')->toDateString();
+        $isHariLibur = \App\Models\HariLibur::isHariLibur($pegawai->unitDetailPresensi->id, $today);
+
+        if ($isHariLibur) {
+            $hariLibur = \App\Models\HariLibur::where('unit_detail_id', $pegawai->unitDetailPresensi->id)
+                ->whereDate('tanggal', $today)
+                ->first();
+
+            return response()->json([
+                'is_hari_libur' => true,
+                'tanggal' => $today,
+                'keterangan' => $hariLibur->keterangan ?? 'Hari Libur',
+                'unit_detail' => [
+                    'id' => $pegawai->unitDetailPresensi->id,
+                    'name' => $pegawai->unitDetailPresensi->name
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'is_hari_libur' => false,
+            'tanggal' => $today
+        ]);
+    }
 }

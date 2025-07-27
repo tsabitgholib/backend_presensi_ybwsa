@@ -63,6 +63,7 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::delete('pegawai/delete/{id}', [PegawaiController::class, 'destroy']);
     Route::get('pegawai/by-unit-id-presensi', [PegawaiController::class, 'getByUnitIdPresensi']);
     Route::get('pegawai/lokasi-presensi', [PegawaiController::class, 'getLokasiPresensi']);
+    Route::get('pegawai/cek-hari-libur', [PegawaiController::class, 'cekHariLibur']);
 
     // Shift
     Route::get('shift', [ShiftController::class, 'index']);
@@ -125,4 +126,11 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::get('/pengajuan-izin/history', [PengajuanIzinController::class, 'history']);
     Route::get('/pengajuan-cuti/history', [PengajuanCutiController::class, 'history']);
     Route::get('/pengajuan-sakit/history', [PengajuanSakitController::class, 'history']);
+
+    // Hari Libur
+    Route::get('hari-libur', [\App\Http\Controllers\HariLiburController::class, 'index']);
+    Route::post('hari-libur/create', [\App\Http\Controllers\HariLiburController::class, 'store']);
+    Route::put('hari-libur/updete/{id}', [\App\Http\Controllers\HariLiburController::class, 'update']);
+    Route::delete('hari-libur/delete/{id}', [\App\Http\Controllers\HariLiburController::class, 'destroy']);
+    Route::post('hari-libur/multiple', [\App\Http\Controllers\HariLiburController::class, 'storeMultiple']);
 });
