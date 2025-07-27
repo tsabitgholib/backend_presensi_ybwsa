@@ -36,10 +36,11 @@ class HariLiburController extends Controller
             ->orderBy('tanggal')
             ->get();
 
-        // Ubah response: hanya id, tanggal, keterangan, nama unit, nama detail unit
+        // Ubah response: tambah unit_detail_id
         $result = $hariLibur->map(function ($hl) {
             return [
                 'id' => $hl->id,
+                'unit_detail_id' => $hl->unit_detail_id,
                 'tanggal' => $hl->tanggal->format('Y-m-d'),
                 'keterangan' => $hl->keterangan,
                 'unit_name' => $hl->unitDetail && $hl->unitDetail->unit ? $hl->unitDetail->unit->name : null,

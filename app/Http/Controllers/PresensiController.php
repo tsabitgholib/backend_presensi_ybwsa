@@ -551,24 +551,27 @@ class PresensiController extends Controller
             $rekap[$tanggal] = $status;
         }
 
-        // Hitung jumlah per status
+        // Hitung jumlah per status dan kumpulkan tanggalnya
         $result = [
             'hadir' => 0,
             'izin' => 0,
             'sakit' => 0,
             'cuti' => 0,
             'tidak_hadir' => 0,
-            'lain' => 0,
             'belum_presensi' => 0,
+            'tanggal_hadir' => [],
+            'tanggal_izin' => [],
+            'tanggal_sakit' => [],
+            'tanggal_cuti' => [],
+            'tanggal_tidak_hadir' => [],
+            'tanggal_belum_presensi' => [],
         ];
-        foreach ($rekap as $status) {
+        foreach ($rekap as $tanggal => $status) {
             if (isset($result[$status])) {
                 $result[$status]++;
-            } else {
-                $result['lain']++;
+                $result['tanggal_' . $status][] = $tanggal;
             }
         }
-        //$result['detail'] = $rekap;
         $result['bulan'] = $bulan;
         $result['tahun'] = $tahun;
         return response()->json($result);
