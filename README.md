@@ -112,7 +112,7 @@ const response = await fetch("/api/hari-libur", {
     }),
 });
 
-// Tambah hari libur untuk multiple unit detail
+// Tambah hari libur untuk multiple unit detail (hanya unit detail milik admin unit)
 const response = await fetch("/api/hari-libur/multiple", {
     method: "POST",
     headers: {
@@ -120,11 +120,21 @@ const response = await fetch("/api/hari-libur/multiple", {
         Authorization: `Bearer ${admin_token}`,
     },
     body: JSON.stringify({
-        unit_detail_ids: [1, 2, 3],
+        unit_detail_ids: [1, 2], // Hanya ID yang milik admin unit yang akan diproses
         tanggal: "2024-01-15",
         keterangan: "Hari Raya Idul Fitri",
     }),
 });
+
+// Response multiple store:
+// {
+//   message: "Proses penambahan hari libur selesai",
+//   created_count: 2,
+//   error_count: 0,
+//   skipped_count: 1, // Unit detail ID 3 tidak diproses karena bukan milik admin unit
+//   created_data: [...],
+//   errors: []
+// }
 ```
 
 ### Endpoint untuk Pegawai
@@ -378,7 +388,7 @@ php artisan serve
 -   **POST** `/api/hari-libur` - Tambah hari libur (admin unit)
 -   **PUT** `/api/hari-libur/{id}` - Update hari libur (admin unit)
 -   **DELETE** `/api/hari-libur/{id}` - Hapus hari libur (admin unit)
--   **POST** `/api/hari-libur/multiple` - Tambah hari libur untuk multiple unit detail (admin unit)
+-   **POST** `/api/hari-libur/multiple` - Tambah hari libur untuk multiple unit detail (hanya unit detail milik admin unit)
 -   **GET** `/api/pegawai/cek-hari-libur` - Cek hari libur dan list hari libur untuk pegawai
 
 ## Testing

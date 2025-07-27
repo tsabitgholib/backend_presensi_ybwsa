@@ -129,6 +129,7 @@ Route::middleware(['auth.jwt'])->group(function () {
 
     // Hari Libur
     Route::get('hari-libur', [\App\Http\Controllers\HariLiburController::class, 'index']);
+
     Route::post('hari-libur/create', [\App\Http\Controllers\HariLiburController::class, 'store']);
     Route::put('hari-libur/updete/{id}', [\App\Http\Controllers\HariLiburController::class, 'update']);
     Route::delete('hari-libur/delete/{id}', [\App\Http\Controllers\HariLiburController::class, 'destroy']);

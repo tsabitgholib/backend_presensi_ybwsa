@@ -39,6 +39,8 @@ class HariLiburController extends Controller
         return response()->json($hariLibur);
     }
 
+
+
     /**
      * Tambah hari libur baru
      */
@@ -159,14 +161,14 @@ class HariLiburController extends Controller
     }
 
     /**
-     * Tambah hari libur untuk multiple unit detail
+     * Tambah hari libur untuk multiple unit detail berdasarkan admin unit yang login
      */
     public function storeMultiple(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        }
+        // if (!$admin || $admin->role !== 'admin_unit') {
+        //     return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        // }
 
         $request->validate([
             'unit_detail_ids' => 'required|array',
@@ -175,19 +177,27 @@ class HariLiburController extends Controller
             'keterangan' => 'required|string|max:255',
         ]);
 
-        // Validasi bahwa semua unit detail milik unit admin
-        $unitDetails = UnitDetail::whereIn('id', $request->unit_detail_ids)
-            ->where('unit_id', $admin->unit_id)
-            ->get();
+        // Ambil semua unit detail yang milik admin unit yang login
+        $availableUnitDetails = UnitDetail::where('unit_id', $admin->unit_id)->get();
+        $availableUnitDetailIds = $availableUnitDetails->pluck('id')->toArray();
 
-        if ($unitDetails->count() !== count($request->unit_detail_ids)) {
-            return response()->json(['message' => 'Beberapa unit detail tidak ditemukan atau tidak memiliki akses'], 400);
+        // Filter unit_detail_ids yang hanya milik admin unit yang login
+        $validUnitDetailIds = array_intersect($request->unit_detail_ids, $availableUnitDetailIds);
+
+        if (empty($validUnitDetailIds)) {
+            return response()->json(['message' => 'Tidak ada unit detail yang valid untuk admin unit ini'], 400);
         }
 
         $createdHariLibur = [];
         $errors = [];
+        $skippedUnitDetails = array_diff($request->unit_detail_ids, $availableUnitDetailIds);
 
-        foreach ($request->unit_detail_ids as $unitDetailId) {
+        // Tambahkan error untuk unit detail yang tidak memiliki akses
+        foreach ($skippedUnitDetails as $unitDetailId) {
+            $errors[] = "Unit detail ID {$unitDetailId} tidak memiliki akses atau tidak ditemukan";
+        }
+
+        foreach ($validUnitDetailIds as $unitDetailId) {
             // Cek apakah sudah ada hari libur untuk tanggal dan unit detail yang sama
             $existingHariLibur = HariLibur::where('unit_detail_id', $unitDetailId)
                 ->whereDate('tanggal', $request->tanggal)
@@ -213,10 +223,11 @@ class HariLiburController extends Controller
 
         return response()->json([
             'message' => 'Proses penambahan hari libur selesai',
-            'created_count' => count($createdHariLibur),
-            'error_count' => count($errors),
+            'jumlah_hari_libur_ditambahkan' => count($createdHariLibur),
+            // 'jumlah_error' => count($errors),
+            // 'jumlah_unit_detail_tidak_ditemukan' => count($skippedUnitDetails),
             'created_data' => $createdHariLibur,
-            'errors' => $errors
+            // 'errors' => $errors
         ]);
     }
 }
