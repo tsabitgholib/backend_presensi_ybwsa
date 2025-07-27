@@ -39,8 +39,6 @@ class HariLiburController extends Controller
         return response()->json($hariLibur);
     }
 
-
-
     /**
      * Tambah hari libur baru
      */
@@ -95,80 +93,14 @@ class HariLiburController extends Controller
     }
 
     /**
-     * Update hari libur
-     */
-    public function update(Request $request, $id)
-    {
-        $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        }
-
-        $hariLibur = HariLibur::with('unitDetail')->find($id);
-        if (!$hariLibur) {
-            return response()->json(['message' => 'Hari libur tidak ditemukan'], 404);
-        }
-
-        // Validasi bahwa hari libur milik unit admin
-        if ($hariLibur->unitDetail->unit_id !== $admin->unit_id) {
-            return response()->json(['message' => 'Tidak memiliki akses ke hari libur ini'], 403);
-        }
-
-        $request->validate([
-            'tanggal' => 'sometimes|required|date',
-            'keterangan' => 'sometimes|required|string|max:255',
-        ]);
-
-        try {
-            $hariLibur->update($request->only(['tanggal', 'keterangan']));
-            $hariLibur->load(['unitDetail', 'adminUnit']);
-
-            return response()->json([
-                'message' => 'Hari libur berhasil diupdate',
-                'data' => $hariLibur
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Gagal mengupdate hari libur: ' . $e->getMessage()], 400);
-        }
-    }
-
-    /**
-     * Hapus hari libur
-     */
-    public function destroy(Request $request, $id)
-    {
-        $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        }
-
-        $hariLibur = HariLibur::with('unitDetail')->find($id);
-        if (!$hariLibur) {
-            return response()->json(['message' => 'Hari libur tidak ditemukan'], 404);
-        }
-
-        // Validasi bahwa hari libur milik unit admin
-        if ($hariLibur->unitDetail->unit_id !== $admin->unit_id) {
-            return response()->json(['message' => 'Tidak memiliki akses ke hari libur ini'], 403);
-        }
-
-        try {
-            $hariLibur->delete();
-            return response()->json(['message' => 'Hari libur berhasil dihapus']);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Gagal menghapus hari libur: ' . $e->getMessage()], 400);
-        }
-    }
-
-    /**
-     * Tambah hari libur untuk multiple unit detail berdasarkan admin unit yang login
+     * Tambah hari libur untuk multiple unit detail
      */
     public function storeMultiple(Request $request)
     {
         $admin = $request->get('admin');
-        // if (!$admin || $admin->role !== 'admin_unit') {
-        //     return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        // }
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
 
         $request->validate([
             'unit_detail_ids' => 'required|array',
@@ -177,27 +109,19 @@ class HariLiburController extends Controller
             'keterangan' => 'required|string|max:255',
         ]);
 
-        // Ambil semua unit detail yang milik admin unit yang login
-        $availableUnitDetails = UnitDetail::where('unit_id', $admin->unit_id)->get();
-        $availableUnitDetailIds = $availableUnitDetails->pluck('id')->toArray();
+        // Validasi bahwa semua unit detail milik unit admin
+        $unitDetails = UnitDetail::whereIn('id', $request->unit_detail_ids)
+            ->where('unit_id', $admin->unit_id)
+            ->get();
 
-        // Filter unit_detail_ids yang hanya milik admin unit yang login
-        $validUnitDetailIds = array_intersect($request->unit_detail_ids, $availableUnitDetailIds);
-
-        if (empty($validUnitDetailIds)) {
-            return response()->json(['message' => 'Tidak ada unit detail yang valid untuk admin unit ini'], 400);
+        if ($unitDetails->count() !== count($request->unit_detail_ids)) {
+            return response()->json(['message' => 'Beberapa unit detail tidak ditemukan atau tidak memiliki akses'], 400);
         }
 
         $createdHariLibur = [];
         $errors = [];
-        $skippedUnitDetails = array_diff($request->unit_detail_ids, $availableUnitDetailIds);
 
-        // Tambahkan error untuk unit detail yang tidak memiliki akses
-        foreach ($skippedUnitDetails as $unitDetailId) {
-            $errors[] = "Unit detail ID {$unitDetailId} tidak memiliki akses atau tidak ditemukan";
-        }
-
-        foreach ($validUnitDetailIds as $unitDetailId) {
+        foreach ($request->unit_detail_ids as $unitDetailId) {
             // Cek apakah sudah ada hari libur untuk tanggal dan unit detail yang sama
             $existingHariLibur = HariLibur::where('unit_detail_id', $unitDetailId)
                 ->whereDate('tanggal', $request->tanggal)
@@ -223,11 +147,79 @@ class HariLiburController extends Controller
 
         return response()->json([
             'message' => 'Proses penambahan hari libur selesai',
-            'jumlah_hari_libur_ditambahkan' => count($createdHariLibur),
-            // 'jumlah_error' => count($errors),
-            // 'jumlah_unit_detail_tidak_ditemukan' => count($skippedUnitDetails),
+            'created_count' => count($createdHariLibur),
+            'error_count' => count($errors),
             'created_data' => $createdHariLibur,
-            // 'errors' => $errors
+            'errors' => $errors
+        ]);
+    }
+
+    /**
+     * Update hari libur untuk multiple unit detail
+     */
+    public function updateMultiple(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+
+        $request->validate([
+            'unit_detail_ids' => 'required|array',
+            'unit_detail_ids.*' => 'exists:unit_detail,id',
+            'tanggal' => 'required|date',
+            'keterangan' => 'required|string|max:255',
+        ]);
+
+        // Validasi bahwa semua unit detail milik unit admin
+        $unitDetails = UnitDetail::whereIn('id', $request->unit_detail_ids)
+            ->where('unit_id', $admin->unit_id)
+            ->get();
+        if ($unitDetails->count() !== count($request->unit_detail_ids)) {
+            return response()->json(['message' => 'Beberapa unit detail tidak ditemukan atau tidak memiliki akses'], 400);
+        }
+
+        $updated = HariLibur::whereIn('unit_detail_id', $request->unit_detail_ids)
+            ->whereDate('tanggal', $request->tanggal)
+            ->update(['keterangan' => $request->keterangan]);
+
+        return response()->json([
+            'message' => 'Update hari libur selesai',
+            'updated_count' => $updated
+        ]);
+    }
+
+    /**
+     * Delete hari libur untuk multiple unit detail
+     */
+    public function deleteMultiple(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+
+        $request->validate([
+            'unit_detail_ids' => 'required|array',
+            'unit_detail_ids.*' => 'exists:unit_detail,id',
+            'tanggal' => 'required|date',
+        ]);
+
+        // Validasi bahwa semua unit detail milik unit admin
+        $unitDetails = UnitDetail::whereIn('id', $request->unit_detail_ids)
+            ->where('unit_id', $admin->unit_id)
+            ->get();
+        if ($unitDetails->count() !== count($request->unit_detail_ids)) {
+            return response()->json(['message' => 'Beberapa unit detail tidak ditemukan atau tidak memiliki akses'], 400);
+        }
+
+        $deleted = HariLibur::whereIn('unit_detail_id', $request->unit_detail_ids)
+            ->whereDate('tanggal', $request->tanggal)
+            ->delete();
+
+        return response()->json([
+            'message' => 'Delete hari libur selesai',
+            'deleted_count' => $deleted
         ]);
     }
 }
