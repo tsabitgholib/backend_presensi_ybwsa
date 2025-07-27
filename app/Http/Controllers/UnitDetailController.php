@@ -133,4 +133,38 @@ class UnitDetailController extends Controller
             'updated_at' => $detail->updated_at,
         ]);
     }
-} 
+
+    /**
+     * Assign pegawai ke unit detail presensi tertentu (admin unit)
+     */
+    public function assignPegawai(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+
+        $request->validate([
+            'unit_detail_id' => 'required|exists:unit_detail,id',
+            'pegawai_ids' => 'required|array',
+            'pegawai_ids.*' => 'exists:ms_pegawai,id',
+        ]);
+
+        // Validasi unit detail milik unit admin
+        $unitDetail = \App\Models\UnitDetail::where('id', $request->unit_detail_id)
+            ->where('unit_id', $admin->unit_id)
+            ->first();
+        if (!$unitDetail) {
+            return response()->json(['message' => 'Unit detail tidak ditemukan atau bukan milik unit admin'], 404);
+        }
+
+        // Update pegawai
+        $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
+            ->update(['unit_detail_id_presensi' => $request->unit_detail_id]);
+
+        return response()->json([
+            'message' => 'Berhasil assign pegawai ke unit detail',
+            'jumlah_pegawai_diupdate' => $count
+        ]);
+    }
+}

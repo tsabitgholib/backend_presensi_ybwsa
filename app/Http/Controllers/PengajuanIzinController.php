@@ -40,9 +40,9 @@ class PengajuanIzinController extends Controller
             ->join('ms_pegawai', 'pengajuan_izin.pegawai_id', '=', 'ms_pegawai.id')
             ->join('unit_detail', 'unit_detail.id', '=', 'ms_pegawai.unit_detail_id_presensi')
             ->where('unit_detail.unit_id', $unitId)
+            ->orderBy('pengajuan_izin.id', 'desc')
             ->select('pengajuan_izin.*')->paginate(10);
 
-        $pengajuan->orderBy('id', 'desc');
         return response()->json($pengajuan);
     }
 
