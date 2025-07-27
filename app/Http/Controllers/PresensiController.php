@@ -135,6 +135,7 @@ class PresensiController extends Controller
                 'shift_detail_id' => $shiftDetail->id,
                 'waktu' => $jam12,
                 'status' => 'tidak_absen_masuk',
+                'status_presensi' => 'tidak_hadir',
                 'lokasi' => $request->lokasi,
                 'keterangan' => 'Tidak absen masuk, sudah lewat jam 12:00',
             ]);
@@ -162,6 +163,13 @@ class PresensiController extends Controller
                 'shift_detail_id' => $shiftDetail->id,
                 'waktu' => $now,
                 'status' => $status,
+                'status_presensi' => in_array($status, [
+                    'absen_masuk',
+                    'terlambat',
+                    'absen_pulang',
+                    'pulang_awal',
+                    //'hadir_hari_libur'
+                ]) ? 'hadir' : 'tidak_hadir',
                 'lokasi' => $request->lokasi,
                 'keterangan' => $keterangan,
             ]);
@@ -232,6 +240,13 @@ class PresensiController extends Controller
             'shift_detail_id' => $shiftDetail->id,
             'waktu' => $now,
             'status' => $status,
+            'status_presensi' => in_array($status, [
+                'absen_masuk',
+                'terlambat',
+                'absen_pulang',
+                'pulang_awal',
+                'hadir_hari_libur'
+            ]) ? 'hadir' : 'tidak_hadir',
             'lokasi' => $request->lokasi,
             'keterangan' => $keterangan,
         ]);
@@ -279,6 +294,7 @@ class PresensiController extends Controller
             'jam_keluar' => $keluar ? $keluar->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
             'status_masuk' => $masuk ? $masuk->status : null,
             'status_keluar' => $keluar ? $keluar->status : null,
+            'status_presensi' => $masuk ? $masuk->status_presensi : null,
             'lokasi_masuk' => $masuk ? $masuk->lokasi : null,
             'lokasi_keluar' => $keluar ? $keluar->lokasi : null,
         ]);

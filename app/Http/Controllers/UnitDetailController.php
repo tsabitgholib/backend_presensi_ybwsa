@@ -163,7 +163,7 @@ class UnitDetailController extends Controller
             ->update(['unit_detail_id_presensi' => $request->unit_detail_id]);
 
         return response()->json([
-            'message' => 'Berhasil assign pegawai ke unit detail',
+            'message' => 'Berhasil menambahkan pegawai ke unit detail',
             'jumlah_pegawai_diupdate' => $count
         ]);
     }

@@ -8,7 +8,14 @@ class Presensi extends Model
 {
     protected $table = 'presensi';
     protected $fillable = [
-        'no_ktp', 'shift_id', 'shift_detail_id', 'waktu', 'status', 'lokasi', 'keterangan'
+        'no_ktp',
+        'shift_id',
+        'shift_detail_id',
+        'waktu',
+        'status',
+        'status_presensi',
+        'lokasi',
+        'keterangan'
     ];
     protected $casts = [
         'lokasi' => 'array',
