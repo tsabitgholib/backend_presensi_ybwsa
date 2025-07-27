@@ -27,7 +27,7 @@ class AuthJWT
                 }
                 $request->attributes->set('admin', $admin);
             } elseif (isset($payload->role) && $payload->role === 'pegawai') {
-                $pegawai = MsPegawai::find($payload->sub);
+                $pegawai = MsPegawai::with(['shiftDetail.shift', 'unitDetailPresensi'])->find($payload->sub);
                 if (!$pegawai) {
                     return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
                 }
@@ -40,4 +40,4 @@ class AuthJWT
         }
         return $next($request);
     }
-} 
+}

@@ -32,10 +32,10 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::post('admin/login', [AuthAdminController::class, 'login']);
 Route::post('pegawai/login', [AuthPegawaiController::class, 'login']);
-Route::middleware(['auth.jwt'])->group(function() {
+Route::middleware(['auth.jwt'])->group(function () {
     Route::get('admin/me', [AuthAdminController::class, 'me']);
     Route::get('pegawai/me', [AuthPegawaiController::class, 'me']);
-    
+
     // Admin
     Route::get('admin', [AdminController::class, 'index']);
     Route::post('admin/create', [AdminController::class, 'store']);
@@ -62,6 +62,7 @@ Route::middleware(['auth.jwt'])->group(function() {
     Route::put('pegawai/update/{id}', [PegawaiController::class, 'update']);
     Route::delete('pegawai/delete/{id}', [PegawaiController::class, 'destroy']);
     Route::get('pegawai/by-unit-id-presensi', [PegawaiController::class, 'getByUnitIdPresensi']);
+    Route::get('pegawai/lokasi-presensi', [PegawaiController::class, 'getLokasiPresensi']);
 
     // Shift
     Route::get('shift', [ShiftController::class, 'index']);

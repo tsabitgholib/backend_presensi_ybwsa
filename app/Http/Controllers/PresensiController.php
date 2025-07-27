@@ -38,6 +38,10 @@ class PresensiController extends Controller
         if (!$pegawai) {
             return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
         }
+
+        // Load relasi yang diperlukan untuk validasi
+        $pegawai->load(['shiftDetail.shift', 'unitDetailPresensi']);
+
         $request->validate([
             'lokasi' => 'required|array|size:2', // [lat, lng]
         ]);

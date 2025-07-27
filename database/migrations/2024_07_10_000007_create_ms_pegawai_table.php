@@ -43,12 +43,13 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('jabatan')->nullable();
             $table->string('password');
+            $table->unsignedBigInteger('shift_detail_id')->nullable();
             $table->unsignedBigInteger('unit_detail_id_presensi');
             $table->timestamps();
             $table->timestamp('last_sync')->nullable();
 
             $table->foreign('shift_detail_id')->references('id')->on('shift_detail')->onDelete('cascade');
-            
+            $table->foreign('unit_detail_id_presensi')->references('id')->on('unit_detail')->onDelete('cascade');
         });
     }
 
@@ -56,4 +57,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('ms_pegawai');
     }
-}; 
+};

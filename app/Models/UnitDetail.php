@@ -22,6 +22,6 @@ class UnitDetail extends Model
 
     public function pegawais()
     {
-        return $this->hasMany(MsPegawai::class);
+        return $this->hasMany(MsPegawai::class, 'unit_detail_id_presensi');
     }
 }

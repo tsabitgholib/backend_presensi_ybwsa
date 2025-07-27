@@ -38,6 +38,13 @@ class AuthPegawaiController extends Controller
     public function me(Request $request)
     {
         $pegawai = $request->get('pegawai');
+
+        // Load relasi yang diperlukan untuk Android/iOS
+        $pegawai->load([
+            'unitDetailPresensi',
+            'shiftDetail.shift'
+        ]);
+
         return response()->json($pegawai);
     }
-} 
+}

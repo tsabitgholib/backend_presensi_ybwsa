@@ -105,4 +105,73 @@ class PegawaiController extends Controller
             'jumlah_pegawai_diupdate' => $count
         ]);
     }
+
+    /**
+     * Get lokasi presensi yang valid untuk pegawai
+     * Endpoint ini digunakan oleh Android/iOS untuk mendapatkan area lokasi yang valid untuk presensi
+     */
+    public function getLokasiPresensi(Request $request)
+    {
+        $pegawai = $request->get('pegawai');
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
+        }
+
+        // Load relasi yang diperlukan
+        $pegawai->load(['unitDetailPresensi', 'shiftDetail.shift']);
+
+        if (!$pegawai->unitDetailPresensi) {
+            return response()->json(['message' => 'Lokasi presensi tidak ditemukan untuk pegawai ini'], 404);
+        }
+
+        return response()->json([
+            'pegawai_id' => $pegawai->id,
+            'no_ktp' => $pegawai->no_ktp,
+            'nama' => $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : ''),
+            'lokasi_presensi' => [
+                'unit_detail_id' => $pegawai->unitDetailPresensi->id,
+                'nama_lokasi' => $pegawai->unitDetailPresensi->name,
+                'polygon_lokasi' => $pegawai->unitDetailPresensi->lokasi,
+                'unit_name' => $pegawai->unitDetailPresensi->unit->name ?? null
+            ],
+            'shift_info' => $pegawai->shiftDetail ? [
+                'shift_detail_id' => $pegawai->shiftDetail->id,
+                'shift_name' => $pegawai->shiftDetail->shift->name ?? null,
+                'jam_kerja' => [
+                    'senin' => [
+                        'masuk' => $pegawai->shiftDetail->senin_masuk,
+                        'pulang' => $pegawai->shiftDetail->senin_pulang
+                    ],
+                    'selasa' => [
+                        'masuk' => $pegawai->shiftDetail->selasa_masuk,
+                        'pulang' => $pegawai->shiftDetail->selasa_pulang
+                    ],
+                    'rabu' => [
+                        'masuk' => $pegawai->shiftDetail->rabu_masuk,
+                        'pulang' => $pegawai->shiftDetail->rabu_pulang
+                    ],
+                    'kamis' => [
+                        'masuk' => $pegawai->shiftDetail->kamis_masuk,
+                        'pulang' => $pegawai->shiftDetail->kamis_pulang
+                    ],
+                    'jumat' => [
+                        'masuk' => $pegawai->shiftDetail->jumat_masuk,
+                        'pulang' => $pegawai->shiftDetail->jumat_pulang
+                    ],
+                    'sabtu' => [
+                        'masuk' => $pegawai->shiftDetail->sabtu_masuk,
+                        'pulang' => $pegawai->shiftDetail->sabtu_pulang
+                    ],
+                    'minggu' => [
+                        'masuk' => $pegawai->shiftDetail->minggu_masuk,
+                        'pulang' => $pegawai->shiftDetail->minggu_pulang
+                    ]
+                ],
+                'toleransi' => [
+                    'terlambat' => $pegawai->shiftDetail->toleransi_terlambat ?? 0,
+                    'pulang' => $pegawai->shiftDetail->toleransi_pulang ?? 0
+                ]
+            ] : null
+        ]);
+    }
 }
