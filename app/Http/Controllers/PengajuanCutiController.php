@@ -42,6 +42,7 @@ class PengajuanCutiController extends Controller
             ->where('unit_detail.unit_id', $unitId)
             ->select('pengajuan_cuti.*')->paginate(10);
 
+        $pengajuan->orderBy('id', 'desc');
         return response()->json($pengajuan);
     }
 
