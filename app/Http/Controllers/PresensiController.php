@@ -448,4 +448,123 @@ class PresensiController extends Controller
         });
         return response()->json($result);
     }
+
+    /**
+     * Rekap history presensi pegawai per bulan (pegawai yang login)
+     */
+    public function rekapHistoryBulananPegawai(Request $request)
+    {
+        $pegawai = $request->get('pegawai');
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
+        }
+        $bulan = $request->query('bulan', now('Asia/Jakarta')->month);
+        $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
+
+        // Ambil semua tanggal di bulan tsb
+        $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
+        $end = $start->copy()->endOfMonth();
+        $tanggalList = [];
+        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            $tanggalList[] = $date->format('Y-m-d');
+        }
+
+        // Ambil presensi pegawai di bulan tsb
+        $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
+            ->whereBetween('waktu', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+            ->orderBy('waktu')
+            ->get();
+
+        // Ambil pengajuan izin, cuti, sakit yang diterima di bulan tsb
+        $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+        $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+        $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+
+        // Rekap per tanggal (1 hari hanya 1 status, prioritas: hadir > izin > sakit > cuti > tidak hadir > lain > belum presensi)
+        $rekap = [];
+        foreach ($tanggalList as $tanggal) {
+            $status = null;
+            // Cek presensi (hadir/tidak hadir/lain)
+            $presensiHari = $presensi->where(fn($p) => $p->waktu->format('Y-m-d') === $tanggal);
+            if ($presensiHari->count()) {
+                // Prioritas hadir
+                if ($presensiHari->where('status_presensi', 'hadir')->count()) {
+                    $status = 'hadir';
+                } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
+                    $status = 'tidak_hadir';
+                } else {
+                    $status = 'lain';
+                }
+            }
+            // Cek izin
+            if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                foreach ($izin as $i) {
+                    if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
+                        $status = 'izin';
+                        break;
+                    }
+                }
+            }
+            // Cek cuti
+            if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                foreach ($cuti as $c) {
+                    if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
+                        $status = 'cuti';
+                        break;
+                    }
+                }
+            }
+            // Cek sakit
+            if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                foreach ($sakit as $s) {
+                    if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
+                        $status = 'sakit';
+                        break;
+                    }
+                }
+            }
+            // Jika belum ada status
+            if (!$status) {
+                $status = 'belum_presensi';
+            }
+            $rekap[$tanggal] = $status;
+        }
+
+        // Hitung jumlah per status
+        $result = [
+            'hadir' => 0,
+            'izin' => 0,
+            'sakit' => 0,
+            'cuti' => 0,
+            'tidak_hadir' => 0,
+            'lain' => 0,
+            'belum_presensi' => 0,
+        ];
+        foreach ($rekap as $status) {
+            if (isset($result[$status])) {
+                $result[$status]++;
+            } else {
+                $result['lain']++;
+            }
+        }
+        //$result['detail'] = $rekap;
+        $result['bulan'] = $bulan;
+        $result['tahun'] = $tahun;
+        return response()->json($result);
+    }
 }
