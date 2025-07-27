@@ -140,9 +140,9 @@ class UnitDetailController extends Controller
     public function assignPegawai(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        }
+        // if (!$admin || $admin->role !== 'admin_unit') {
+        //     return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        // }
 
         $request->validate([
             'unit_detail_id' => 'required|exists:unit_detail,id',

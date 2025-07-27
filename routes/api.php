@@ -55,7 +55,7 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::put('unit-detail/update/{id}', [UnitDetailController::class, 'update']);
     Route::delete('unit-detail/delete/{id}', [UnitDetailController::class, 'destroy']);
     Route::get('unit-detail/get-by-id/{id}', [UnitDetailController::class, 'show']);
-    Route::post('unit-detail/assign-pegawai', [\App\Http\Controllers\UnitDetailController::class, 'assignPegawai']);
+    Route::post('unit-detail/add-pegawai-to-unit-detail', [\App\Http\Controllers\UnitDetailController::class, 'assignPegawai']);
 
     // Pegawai
     Route::get('pegawai', [PegawaiController::class, 'index']);
