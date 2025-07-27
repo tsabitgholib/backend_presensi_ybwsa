@@ -328,6 +328,7 @@ class PresensiController extends Controller
                 'jam_keluar' => $keluar ? $keluar->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
                 'status_masuk' => $masuk ? $masuk->status : null,
                 'status_keluar' => $keluar ? $keluar->status : null,
+                'status_presensi' => $masuk ? $masuk->status_presensi : null,
             ]);
         }
         $from = $request->query('from', \Carbon\Carbon::now('Asia/Jakarta')->startOfMonth()->toDateString());
