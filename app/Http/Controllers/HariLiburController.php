@@ -32,11 +32,21 @@ class HariLiburController extends Controller
         $hariLibur = HariLibur::whereIn('unit_detail_id', $unitDetailIds)
             ->whereYear('tanggal', $tahun)
             ->whereMonth('tanggal', $bulan)
-            ->with(['unitDetail', 'adminUnit'])
+            ->with(['unitDetail.unit'])
             ->orderBy('tanggal')
             ->get();
 
-        return response()->json($hariLibur);
+        // Ubah response: hanya id, tanggal, keterangan, nama unit, nama detail unit
+        $result = $hariLibur->map(function ($hl) {
+            return [
+                'id' => $hl->id,
+                'tanggal' => $hl->tanggal->format('Y-m-d'),
+                'keterangan' => $hl->keterangan,
+                'unit_name' => $hl->unitDetail && $hl->unitDetail->unit ? $hl->unitDetail->unit->name : null,
+                'unit_detail_name' => $hl->unitDetail ? $hl->unitDetail->name : null,
+            ];
+        });
+        return response()->json($result);
     }
 
     /**

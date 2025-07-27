@@ -128,12 +128,18 @@ class PresensiController extends Controller
         $jam12 = \Carbon\Carbon::createFromTime(12, 0, 0, 'Asia/Jakarta');
         // Jika presensi dilakukan setelah jam 12.00 dan belum absen masuk
         if (!$sudahAbsenMasuk && $now->greaterThanOrEqualTo($jam12)) {
-            // Insert presensi tidak_absen_masuk pada jam 12.00
+            // Set waktu presensi tidak_absen_masuk ke jam masuk shift
+            $waktuMasuk = null;
+            try {
+                $waktuMasuk = \Carbon\Carbon::createFromFormat('H:i', $jamMasuk, 'Asia/Jakarta')->setDate($now->year, $now->month, $now->day);
+            } catch (\Exception $e) {
+                $waktuMasuk = $now->copy()->setTime(0, 0, 0); // fallback ke 00:00 jika format error
+            }
             Presensi::create([
                 'no_ktp' => $pegawai->no_ktp,
                 'shift_id' => $shiftDetail->shift_id,
                 'shift_detail_id' => $shiftDetail->id,
-                'waktu' => $jam12,
+                'waktu' => $waktuMasuk,
                 'status' => 'tidak_absen_masuk',
                 'status_presensi' => 'tidak_hadir',
                 'lokasi' => $request->lokasi,
@@ -566,5 +572,89 @@ class PresensiController extends Controller
         $result['bulan'] = $bulan;
         $result['tahun'] = $tahun;
         return response()->json($result);
+    }
+
+    /**
+     * Detail history presensi pegawai di unit detail tertentu (admin unit)
+     * Bisa filter by pegawai, dan update presensi oleh admin unit
+     */
+    public function detailHistoryByAdminUnit(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+        $unit_detail_id = $request->query('unit_detail_id');
+        $pegawai_id = $request->query('pegawai_id');
+        $from = $request->query('from');
+        $to = $request->query('to');
+
+        // Ambil semua pegawai di unit detail tsb
+        $pegawaiQuery = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function($q) use ($admin, $unit_detail_id) {
+            $q->where('unit_id', $admin->unit_id);
+            if ($unit_detail_id) {
+                $q->where('id', $unit_detail_id);
+            }
+        });
+        if ($pegawai_id) {
+            $pegawaiQuery->where('id', $pegawai_id);
+        }
+        $pegawais = $pegawaiQuery->get();
+
+        $result = [];
+        foreach ($pegawais as $pegawai) {
+            $presensiQuery = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp);
+            if ($from) {
+                $presensiQuery->whereDate('waktu', '>=', $from);
+            }
+            if ($to) {
+                $presensiQuery->whereDate('waktu', '<=', $to);
+            }
+            $presensi = $presensiQuery->orderBy('waktu', 'desc')->get();
+            $result[] = [
+                'pegawai' => [
+                    'id' => $pegawai->id,
+                    'nama' => $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : ''),
+                    'no_ktp' => $pegawai->no_ktp,
+                    'unit_detail_id_presensi' => $pegawai->unit_detail_id_presensi,
+                ],
+                'presensi' => $presensi
+            ];
+        }
+        return response()->json($result);
+    }
+
+    /**
+     * Update presensi oleh admin unit
+     */
+    public function updatePresensiByAdminUnit(Request $request, $id)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+        $presensi = \App\Models\Presensi::find($id);
+        if (!$presensi) {
+            return response()->json(['message' => 'Presensi tidak ditemukan'], 404);
+        }
+        // Validasi pegawai milik unit admin
+        $pegawai = \App\Models\MsPegawai::where('no_ktp', $presensi->no_ktp)
+            ->whereHas('unitDetailPresensi', function($q) use ($admin) {
+                $q->where('unit_id', $admin->unit_id);
+            })->first();
+        if (!$pegawai) {
+            return response()->json(['message' => 'Tidak memiliki akses edit presensi pegawai ini'], 403);
+        }
+        $request->validate([
+            'status' => 'sometimes|required|string',
+            'status_presensi' => 'sometimes|required|string',
+            'keterangan' => 'sometimes|nullable|string',
+            'waktu' => 'sometimes|date',
+        ]);
+        $presensi->update($request->only(['status', 'status_presensi', 'keterangan', 'waktu']));
+        return response()->json([
+            'message' => 'Presensi berhasil diupdate',
+            'data' => $presensi
+        ]);
     }
 }
