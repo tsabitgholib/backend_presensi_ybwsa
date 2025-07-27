@@ -12,45 +12,29 @@ class HariLiburController extends Controller
     /**
      * Tampilkan daftar hari libur untuk unit detail tertentu
      */
+    /**
+     * Tampilkan daftar hari libur berdasarkan admin unit yang login
+     */
     public function index(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        }
+        // if (!$admin || $admin->role !== 'admin_unit') {
+        //     return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        // }
 
-        $unitDetailId = $request->query('unit_detail_id');
         $bulan = $request->query('bulan', Carbon::now()->month);
         $tahun = $request->query('tahun', Carbon::now()->year);
 
-        // Jika unit_detail_id tidak diberikan, ambil semua unit detail dari unit admin
-        if (!$unitDetailId) {
-            $unitDetails = UnitDetail::where('unit_id', $admin->unit_id)->get();
-            $unitDetailIds = $unitDetails->pluck('id');
+        // Ambil semua unit detail dari unit admin yang login
+        $unitDetails = UnitDetail::where('unit_id', $admin->unit_id)->get();
+        $unitDetailIds = $unitDetails->pluck('id');
 
-            $hariLibur = HariLibur::whereIn('unit_detail_id', $unitDetailIds)
-                ->whereYear('tanggal', $tahun)
-                ->whereMonth('tanggal', $bulan)
-                ->with(['unitDetail', 'adminUnit'])
-                ->orderBy('tanggal')
-                ->get();
-        } else {
-            // Validasi bahwa unit detail milik unit admin
-            $unitDetail = UnitDetail::where('id', $unitDetailId)
-                ->where('unit_id', $admin->unit_id)
-                ->first();
-
-            if (!$unitDetail) {
-                return response()->json(['message' => 'Unit detail tidak ditemukan'], 404);
-            }
-
-            $hariLibur = HariLibur::where('unit_detail_id', $unitDetailId)
-                ->whereYear('tanggal', $tahun)
-                ->whereMonth('tanggal', $bulan)
-                ->with(['unitDetail', 'adminUnit'])
-                ->orderBy('tanggal')
-                ->get();
-        }
+        $hariLibur = HariLibur::whereIn('unit_detail_id', $unitDetailIds)
+            ->whereYear('tanggal', $tahun)
+            ->whereMonth('tanggal', $bulan)
+            ->with(['unitDetail', 'adminUnit'])
+            ->orderBy('tanggal')
+            ->get();
 
         return response()->json($hariLibur);
     }

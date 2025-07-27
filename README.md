@@ -82,68 +82,80 @@ Backend API untuk sistem presensi YBWSA dengan integrasi Android/iOS.
 ## Fitur Hari Libur
 
 ### Konsep Hari Libur
-- Masing-masing admin unit dapat melakukan setting hari libur dengan keterangannya
-- Hari libur nempel ke masing-masing unit detail pada masing-masing unitnya
-- Jika pada hari tersebut libur, pegawai akan otomatis ter-flagging hadir/masuk semua dengan keterangan "Hari Libur"
-- Status presensi hari libur: `hadir_hari_libur`
+
+-   Masing-masing admin unit dapat melakukan setting hari libur dengan keterangannya
+-   Hari libur nempel ke masing-masing unit detail pada masing-masing unitnya
+-   Jika pada hari tersebut libur, pegawai akan otomatis ter-flagging hadir/masuk semua dengan keterangan "Hari Libur"
+-   Status presensi hari libur: `hadir_hari_libur`
 
 ### Cara Kerja Hari Libur
+
 1. **Admin Unit** mengatur hari libur untuk unit detail tertentu
 2. **Pegawai** melakukan presensi pada hari libur
 3. **Sistem** otomatis memberikan status `hadir_hari_libur` dengan keterangan "Hari Libur"
 4. **Pegawai** hanya perlu presensi sekali per hari libur
 
 ### Endpoint untuk Admin Unit
+
 ```javascript
 // Tambah hari libur
-const response = await fetch('/api/hari-libur', {
-  method: 'POST',
-  headers: { 
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${admin_token}`
-  },
-  body: JSON.stringify({
-    unit_detail_id: 1,
-    tanggal: '2024-01-15',
-    keterangan: 'Hari Raya Idul Fitri'
-  })
+const response = await fetch("/api/hari-libur", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${admin_token}`,
+    },
+    body: JSON.stringify({
+        unit_detail_id: 1,
+        tanggal: "2024-01-15",
+        keterangan: "Hari Raya Idul Fitri",
+    }),
 });
 
 // Tambah hari libur untuk multiple unit detail
-const response = await fetch('/api/hari-libur/multiple', {
-  method: 'POST',
-  headers: { 
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${admin_token}`
-  },
-  body: JSON.stringify({
-    unit_detail_ids: [1, 2, 3],
-    tanggal: '2024-01-15',
-    keterangan: 'Hari Raya Idul Fitri'
-  })
+const response = await fetch("/api/hari-libur/multiple", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${admin_token}`,
+    },
+    body: JSON.stringify({
+        unit_detail_ids: [1, 2, 3],
+        tanggal: "2024-01-15",
+        keterangan: "Hari Raya Idul Fitri",
+    }),
 });
 ```
 
 ### Endpoint untuk Pegawai
+
 ```javascript
-// Cek apakah hari ini libur
-const response = await fetch('/api/pegawai/cek-hari-libur', {
-  headers: { 'Authorization': `Bearer ${pegawai_token}` }
+// Cek hari libur dan dapatkan list hari libur
+const response = await fetch("/api/pegawai/cek-hari-libur?bulan=1&tahun=2024", {
+    headers: { Authorization: `Bearer ${pegawai_token}` },
 });
 
 const result = await response.json();
-// Response: { is_hari_libur: true, tanggal: '2024-01-15', keterangan: 'Hari Raya Idul Fitri' }
+// Response: {
+//   is_hari_libur: true,
+//   tanggal_hari_ini: '2024-01-15',
+//   keterangan_hari_ini: 'Hari Raya Idul Fitri',
+//   unit_detail: { id: 1, name: 'Kantor Pusat' },
+//   list_hari_libur: [
+//     { id: 1, tanggal: '2024-01-15', keterangan: 'Hari Raya Idul Fitri', created_at: '2024-01-10 10:00:00' }
+//   ]
+// }
 
 // Presensi pada hari libur (otomatis status hadir_hari_libur)
-const presensiResponse = await fetch('/api/presensi', {
-  method: 'POST',
-  headers: { 
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${pegawai_token}`
-  },
-  body: JSON.stringify({
-    lokasi: [latitude, longitude]
-  })
+const presensiResponse = await fetch("/api/presensi", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pegawai_token}`,
+    },
+    body: JSON.stringify({
+        lokasi: [latitude, longitude],
+    }),
 });
 ```
 
@@ -362,12 +374,12 @@ php artisan serve
 
 ### Hari Libur
 
--   **GET** `/api/hari-libur` - Daftar hari libur (admin unit)
+-   **GET** `/api/hari-libur` - Daftar hari libur berdasarkan admin unit yang login
 -   **POST** `/api/hari-libur` - Tambah hari libur (admin unit)
 -   **PUT** `/api/hari-libur/{id}` - Update hari libur (admin unit)
 -   **DELETE** `/api/hari-libur/{id}` - Hapus hari libur (admin unit)
 -   **POST** `/api/hari-libur/multiple` - Tambah hari libur untuk multiple unit detail (admin unit)
--   **GET** `/api/pegawai/cek-hari-libur` - Cek apakah hari ini libur (pegawai)
+-   **GET** `/api/pegawai/cek-hari-libur` - Cek hari libur dan list hari libur untuk pegawai
 
 ## Testing
 

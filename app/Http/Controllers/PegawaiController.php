@@ -176,7 +176,7 @@ class PegawaiController extends Controller
     }
 
     /**
-     * Cek apakah hari ini adalah hari libur untuk pegawai
+     * Cek dan tampilkan list hari libur untuk pegawai berdasarkan unit_detail_id_presensi
      */
     public function cekHariLibur(Request $request)
     {
@@ -193,27 +193,41 @@ class PegawaiController extends Controller
         }
 
         $today = \Carbon\Carbon::now('Asia/Jakarta')->toDateString();
+        $bulan = $request->query('bulan', \Carbon\Carbon::now()->month);
+        $tahun = $request->query('tahun', \Carbon\Carbon::now()->year);
+
+        // Cek apakah hari ini adalah hari libur
         $isHariLibur = \App\Models\HariLibur::isHariLibur($pegawai->unitDetailPresensi->id, $today);
 
-        if ($isHariLibur) {
-            $hariLibur = \App\Models\HariLibur::where('unit_detail_id', $pegawai->unitDetailPresensi->id)
-                ->whereDate('tanggal', $today)
-                ->first();
+        // Ambil list hari libur untuk unit detail pegawai
+        $listHariLibur = \App\Models\HariLibur::where('unit_detail_id', $pegawai->unitDetailPresensi->id)
+            ->whereYear('tanggal', $tahun)
+            ->whereMonth('tanggal', $bulan)
+            ->orderBy('tanggal')
+            ->get();
 
-            return response()->json([
-                'is_hari_libur' => true,
-                'tanggal' => $today,
-                'keterangan' => $hariLibur->keterangan ?? 'Hari Libur',
-                'unit_detail' => [
-                    'id' => $pegawai->unitDetailPresensi->id,
-                    'name' => $pegawai->unitDetailPresensi->name
-                ]
-            ]);
+        $response = [
+            'is_hari_libur' => $isHariLibur,
+            'tanggal_hari_ini' => $today,
+            'unit_detail' => [
+                'id' => $pegawai->unitDetailPresensi->id,
+                'name' => $pegawai->unitDetailPresensi->name
+            ],
+            'list_hari_libur' => $listHariLibur->map(function ($hariLibur) {
+                return [
+                    'id' => $hariLibur->id,
+                    'tanggal' => $hariLibur->tanggal->format('Y-m-d'),
+                    'keterangan' => $hariLibur->keterangan,
+                    'created_at' => $hariLibur->created_at->format('Y-m-d H:i:s')
+                ];
+            })
+        ];
+
+        if ($isHariLibur) {
+            $hariLiburHariIni = $listHariLibur->where('tanggal', $today)->first();
+            $response['keterangan_hari_ini'] = $hariLiburHariIni->keterangan ?? 'Hari Libur';
         }
 
-        return response()->json([
-            'is_hari_libur' => false,
-            'tanggal' => $today
-        ]);
+        return response()->json($response);
     }
 }
