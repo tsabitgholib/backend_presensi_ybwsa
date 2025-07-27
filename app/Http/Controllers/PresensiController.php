@@ -590,7 +590,7 @@ class PresensiController extends Controller
         $to = $request->query('to');
 
         // Ambil semua pegawai di unit detail tsb
-        $pegawaiQuery = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function($q) use ($admin, $unit_detail_id) {
+        $pegawaiQuery = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin, $unit_detail_id) {
             $q->where('unit_id', $admin->unit_id);
             if ($unit_detail_id) {
                 $q->where('id', $unit_detail_id);
@@ -625,36 +625,48 @@ class PresensiController extends Controller
     }
 
     /**
-     * Update presensi oleh admin unit
+     * Update 2 presensi (masuk & keluar) pegawai pada tanggal yang sama oleh admin unit
+     * pegawai_id dan tanggal di parameter
      */
-    public function updatePresensiByAdminUnit(Request $request, $id)
+    public function updatePresensiByAdminUnitBulk(Request $request, $pegawai_id, $tanggal)
     {
         $admin = $request->get('admin');
         if (!$admin || $admin->role !== 'admin_unit') {
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
-        $presensi = \App\Models\Presensi::find($id);
-        if (!$presensi) {
-            return response()->json(['message' => 'Presensi tidak ditemukan'], 404);
+        $updates = $request->input('updates');
+        if (!$pegawai_id || !$tanggal || !is_array($updates)) {
+            return response()->json(['message' => 'pegawai_id, tanggal, dan updates wajib diisi'], 422);
+        }
+        $pegawai = \App\Models\MsPegawai::find($pegawai_id);
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
         }
         // Validasi pegawai milik unit admin
-        $pegawai = \App\Models\MsPegawai::where('no_ktp', $presensi->no_ktp)
-            ->whereHas('unitDetailPresensi', function($q) use ($admin) {
-                $q->where('unit_id', $admin->unit_id);
-            })->first();
-        if (!$pegawai) {
+        if (!$pegawai->unitDetailPresensi || $pegawai->unitDetailPresensi->unit_id != $admin->unit_id) {
             return response()->json(['message' => 'Tidak memiliki akses edit presensi pegawai ini'], 403);
         }
-        $request->validate([
-            'status' => 'sometimes|required|string',
-            'status_presensi' => 'sometimes|required|string',
-            'keterangan' => 'sometimes|nullable|string',
-            'waktu' => 'sometimes|date',
-        ]);
-        $presensi->update($request->only(['status', 'status_presensi', 'keterangan', 'waktu']));
+        $presensis = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
+            ->whereDate('waktu', $tanggal)
+            ->get();
+        if ($presensis->isEmpty()) {
+            return response()->json(['message' => 'Tidak ada presensi pada tanggal tersebut'], 404);
+        }
+        $updated = [];
+        foreach ($updates as $update) {
+            $status = $update['status'] ?? null;
+            $waktu = $update['waktu'] ?? null;
+            foreach ($presensis as $presensi) {
+                // Update presensi yang status sama (atau update semua jika status tidak dikirim)
+                if (!$status || $presensi->status === $status) {
+                    $presensi->update(array_filter($update, fn($v) => $v !== null));
+                    $updated[] = $presensi;
+                }
+            }
+        }
         return response()->json([
             'message' => 'Presensi berhasil diupdate',
-            'data' => $presensi
+            'updated' => $updated
         ]);
     }
 }
