@@ -152,7 +152,7 @@ class UnitDetailController extends Controller
 
         // Validasi unit detail milik unit admin
         $unitDetail = \App\Models\UnitDetail::where('id', $request->unit_detail_id)
-            ->where('unit_id', $admin->unit_id)
+            //->where('unit_id', $admin->unit_id)
             ->first();
         if (!$unitDetail) {
             return response()->json(['message' => 'Unit detail tidak ditemukan atau bukan milik unit admin'], 404);
