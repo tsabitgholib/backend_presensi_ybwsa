@@ -144,8 +144,8 @@ Route::middleware(['auth.jwt'])->group(function () {
     // Lauk Pauk Unit
     Route::get('lauk-pauk', [\App\Http\Controllers\LaukPaukUnitController::class, 'index']);
     Route::get('lauk-pauk/by-admin-unit', [\App\Http\Controllers\LaukPaukUnitController::class, 'showByAdminUnit']);
-    Route::get('lauk-pauk-unit/get-by-id/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'show']);
-    Route::post('lauk-pauk-unit/create', [\App\Http\Controllers\LaukPaukUnitController::class, 'store']);
-    Route::put('lauk-pauk-unit/update/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'update']);
-    Route::delete('lauk-pauk-unit/delete/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'destroy']);
+    Route::get('lauk-pauk/get-by-id/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'show']);
+    Route::post('lauk-pauk/create', [\App\Http\Controllers\LaukPaukUnitController::class, 'store']);
+    Route::put('lauk-pauk/update/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'update']);
+    Route::delete('lauk-pauk/delete/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'destroy']);
 });
