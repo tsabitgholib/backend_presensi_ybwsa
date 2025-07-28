@@ -14,6 +14,7 @@ use App\Http\Controllers\PresensiController;
 use App\Http\Controllers\PengajuanCutiController;
 use App\Http\Controllers\PengajuanSakitController;
 use App\Http\Controllers\PengajuanIzinController;
+use App\Http\Controllers\LaukPaukUnitController;
 
 /*
 |--------------------------------------------------------------------------
@@ -139,4 +140,11 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::post('hari-libur/multiple-create', [\App\Http\Controllers\HariLiburController::class, 'storeMultiple']);
     Route::put('hari-libur/multiple-update', [\App\Http\Controllers\HariLiburController::class, 'updateMultiple']);
     Route::delete('hari-libur/multiple-delete', [\App\Http\Controllers\HariLiburController::class, 'deleteMultiple']);
+
+    // Lauk Pauk Unit
+    Route::get('lauk-pauk', [\App\Http\Controllers\LaukPaukUnitController::class, 'index']);
+    Route::get('lauk-pauk-unit/get-by-id/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'show']);
+    Route::post('lauk-pauk-unit/create', [\App\Http\Controllers\LaukPaukUnitController::class, 'store']);
+    Route::put('lauk-pauk-unit/update/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'update']);
+    Route::delete('lauk-pauk-unit/delete/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'destroy']);
 });

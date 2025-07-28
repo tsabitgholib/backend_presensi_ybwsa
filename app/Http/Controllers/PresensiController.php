@@ -918,6 +918,13 @@ class PresensiController extends Controller
         foreach ($pegawais as $pegawai) {
             $unitDetail = $pegawai->unitDetailPresensi;
             $unitDetailName = $unitDetail ? $unitDetail->name : null;
+            $unitId = $unitDetail ? $unitDetail->unit_id : null;
+            // Ambil nominal lauk pauk dari tabel lauk_pauk_unit
+            $nominalLaukPauk = 0;
+            if ($unitId) {
+                $laukPauk = \App\Models\LaukPaukUnit::where('unit_id', $unitId)->first();
+                $nominalLaukPauk = $laukPauk ? $laukPauk->nominal : 0;
+            }
             // Hitung hari efektif (tidak termasuk sabtu/minggu dan hari libur)
             $hariEfektif = 0;
             $jumlahLibur = 0;
@@ -1022,7 +1029,7 @@ class PresensiController extends Controller
                 'jumlah_jam_pulang_kosong' => $jumlahJamPulangKosong,
                 'lembur' => 0,
                 'jumlah_libur' => $jumlahLibur,
-                'nominal_lauk_pauk' => 660000
+                'nominal_lauk_pauk' => $nominalLaukPauk
             ];
         }
         return response()->json($result);
