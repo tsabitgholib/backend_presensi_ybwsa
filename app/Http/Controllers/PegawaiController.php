@@ -5,17 +5,16 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\MsPegawai;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class PegawaiController extends Controller
 {
     public function index()
     {
-        $pegawaiPaginate = MsPegawai::with('unitDetailPresensi')->paginate(20);
-        // Tambahkan unit_detail_name ke setiap pegawai
-        $pegawaiPaginate->collection->transform(function ($pegawai) {
-            $pegawai->unit_detail_name = $pegawai->unitDetailPresensi->name ?? null;
-            return $pegawai;
-        });
+        $pegawaiPaginate = DB::table('ms_pegawai')
+            ->leftJoin('unit_detail', 'ms_pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
+            ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name')
+            ->paginate(20);
         return response()->json($pegawaiPaginate);
     }
 
