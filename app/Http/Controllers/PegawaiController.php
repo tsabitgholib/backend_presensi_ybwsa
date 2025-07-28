@@ -10,7 +10,13 @@ class PegawaiController extends Controller
 {
     public function index()
     {
-        return response()->json(MsPegawai::with('unitDetailPresensi')->paginate(20));
+        $pegawaiPaginate = MsPegawai::with('unitDetailPresensi')->paginate(20);
+        // Tambahkan unit_detail_name ke setiap pegawai
+        $pegawaiPaginate->collection->transform(function ($pegawai) {
+            $pegawai->unit_detail_name = $pegawai->unitDetailPresensi->name ?? null;
+            return $pegawai;
+        });
+        return response()->json($pegawaiPaginate);
     }
 
     public function store(Request $request)
