@@ -9,12 +9,35 @@ use Illuminate\Support\Facades\DB;
 
 class PegawaiController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $pegawaiPaginate = DB::table('ms_pegawai')
+        $query = DB::table('ms_pegawai')
             ->leftJoin('unit_detail', 'ms_pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
-            ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name')
-            ->paginate(20);
+            ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
+            ->leftJoin('shift_detail', 'ms_pegawai.shift_detail_id', '=', 'shift_detail.id')
+            ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
+            ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name');
+
+        if ($request->filled('nama')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
+                    ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
+            });
+        }
+        if ($request->filled('nik')) {
+            $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+        }
+        if ($request->filled('unit')) {
+            $query->where('unit.name', 'like', '%' . $request->unit . '%');
+        }
+        if ($request->filled('unit_detail')) {
+            $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
+        }
+        if ($request->filled('shift')) {
+            $query->where('shift.name', 'like', '%' . $request->shift . '%');
+        }
+
+        $pegawaiPaginate = $query->paginate(20);
         return response()->json($pegawaiPaginate);
     }
 
@@ -86,9 +109,34 @@ class PegawaiController extends Controller
         if (!$admin || $admin->role !== 'admin_unit') {
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
-        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
-            $q->where('unit_id', $admin->unit_id);
-        })->with('unitDetailPresensi')->get();
+        $query = DB::table('ms_pegawai')
+            ->leftJoin('unit_detail', 'ms_pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
+            ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
+            ->leftJoin('shift_detail', 'ms_pegawai.shift_detail_id', '=', 'shift_detail.id')
+            ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
+            ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name')
+            ->where('unit_detail.unit_id', $admin->unit_id);
+
+        if ($request->filled('nama')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
+                    ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
+            });
+        }
+        if ($request->filled('nik')) {
+            $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+        }
+        if ($request->filled('unit')) {
+            $query->where('unit.name', 'like', '%' . $request->unit . '%');
+        }
+        if ($request->filled('unit_detail')) {
+            $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
+        }
+        if ($request->filled('shift')) {
+            $query->where('shift.name', 'like', '%' . $request->shift . '%');
+        }
+
+        $pegawais = $query->get();
         return response()->json($pegawais);
     }
 
