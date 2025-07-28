@@ -19,6 +19,20 @@ class LaukPaukUnitController extends Controller
         return response()->json($data);
     }
 
+    public function showByAdminUnit(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+        $unit_id = $admin->unit_id;
+        $laukPauk = \App\Models\LaukPaukUnit::where('unit_id', $unit_id)->first();
+        if (!$laukPauk) {
+            return response()->json(['unit_id' => $unit_id, 'nominal' => 0]);
+        }
+        return response()->json($laukPauk);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
