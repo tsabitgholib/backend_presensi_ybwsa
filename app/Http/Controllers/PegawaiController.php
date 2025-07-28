@@ -162,7 +162,7 @@ class PegawaiController extends Controller
             }
         }
 
-        $pegawais = $query->get();
+        $pegawais = $query->paginate(20);
         return response()->json($pegawais);
     }
 
