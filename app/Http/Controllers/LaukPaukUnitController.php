@@ -35,23 +35,40 @@ class LaukPaukUnitController extends Controller
 
     public function store(Request $request)
     {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
         $request->validate([
-            'unit_id' => 'required|exists:unit,id',
             'nominal' => 'required|numeric|min:0',
         ]);
-        $data = LaukPaukUnit::create($request->only(['unit_id', 'nominal']));
+        $unit_id = $admin->unit_id;
+        $data = \App\Models\LaukPaukUnit::updateOrCreate(
+            ['unit_id' => $unit_id],
+            ['nominal' => $request->nominal]
+        );
         return response()->json($data);
     }
 
     public function update(Request $request, $id)
     {
-        $data = LaukPaukUnit::find($id);
-        if (!$data) return response()->json(['message' => 'Data tidak ditemukan'], 404);
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
         $request->validate([
-            'unit_id' => 'sometimes|exists:unit,id',
-            'nominal' => 'sometimes|numeric|min:0',
+            'nominal' => 'required|numeric|min:0',
         ]);
-        $data->update($request->only(['unit_id', 'nominal']));
+        $unit_id = $admin->unit_id;
+        $data = \App\Models\LaukPaukUnit::where('unit_id', $unit_id)->first();
+        if (!$data) {
+            $data = \App\Models\LaukPaukUnit::create([
+                'unit_id' => $unit_id,
+                'nominal' => $request->nominal
+            ]);
+        } else {
+            $data->update(['nominal' => $request->nominal]);
+        }
         return response()->json($data);
     }
 
