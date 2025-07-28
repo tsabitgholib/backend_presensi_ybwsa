@@ -594,7 +594,7 @@ class PresensiController extends Controller
         $from = $request->query('from');
         $to = $request->query('to');
 
-        // Ambil semua pegawai di unit detail tsb
+        // Ambil semua pegawai di unit admin (jika unit_detail_id tidak diisi, ambil semua di unit admin)
         $pegawaiQuery = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin, $unit_detail_id) {
             $q->where('unit_id', $admin->unit_id);
             if ($unit_detail_id) {
