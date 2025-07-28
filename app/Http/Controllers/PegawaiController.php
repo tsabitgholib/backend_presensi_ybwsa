@@ -18,23 +18,36 @@ class PegawaiController extends Controller
             ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
             ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name');
 
-        if ($request->filled('nama')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
-                    ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('ms_pegawai.nama_depan', 'like', "%$search%")
+                    ->orWhere('ms_pegawai.nama_tengah', 'like', "%$search%")
+                    ->orWhere('ms_pegawai.nama_belakang', 'like', "%$search%")
+                    ->orWhere('ms_pegawai.no_ktp', 'like', "%$search%")
+                    ->orWhere('unit.name', 'like', "%$search%")
+                    ->orWhere('unit_detail.name', 'like', "%$search%")
+                    ->orWhere('shift.name', 'like', "%$search%");
             });
-        }
-        if ($request->filled('nik')) {
-            $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
-        }
-        if ($request->filled('unit')) {
-            $query->where('unit.name', 'like', '%' . $request->unit . '%');
-        }
-        if ($request->filled('unit_detail')) {
-            $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
-        }
-        if ($request->filled('shift')) {
-            $query->where('shift.name', 'like', '%' . $request->shift . '%');
+        } else {
+            if ($request->filled('nama')) {
+                $query->where(function ($q) use ($request) {
+                    $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
+                        ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
+                });
+            }
+            if ($request->filled('nik')) {
+                $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+            }
+            if ($request->filled('unit')) {
+                $query->where('unit.name', 'like', '%' . $request->unit . '%');
+            }
+            if ($request->filled('unit_detail')) {
+                $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
+            }
+            if ($request->filled('shift')) {
+                $query->where('shift.name', 'like', '%' . $request->shift . '%');
+            }
         }
 
         $pegawaiPaginate = $query->paginate(20);
@@ -117,23 +130,36 @@ class PegawaiController extends Controller
             ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name')
             ->where('unit_detail.unit_id', $admin->unit_id);
 
-        if ($request->filled('nama')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
-                    ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('ms_pegawai.nama_depan', 'like', "%$search%")
+                    ->orWhere('ms_pegawai.nama_tengah', 'like', "%$search%")
+                    ->orWhere('ms_pegawai.nama_belakang', 'like', "%$search%")
+                    ->orWhere('ms_pegawai.no_ktp', 'like', "%$search%")
+                    ->orWhere('unit.name', 'like', "%$search%")
+                    ->orWhere('unit_detail.name', 'like', "%$search%")
+                    ->orWhere('shift.name', 'like', "%$search%");
             });
-        }
-        if ($request->filled('nik')) {
-            $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
-        }
-        if ($request->filled('unit')) {
-            $query->where('unit.name', 'like', '%' . $request->unit . '%');
-        }
-        if ($request->filled('unit_detail')) {
-            $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
-        }
-        if ($request->filled('shift')) {
-            $query->where('shift.name', 'like', '%' . $request->shift . '%');
+        } else {
+            if ($request->filled('nama')) {
+                $query->where(function ($q) use ($request) {
+                    $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
+                        ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
+                });
+            }
+            if ($request->filled('nik')) {
+                $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+            }
+            if ($request->filled('unit')) {
+                $query->where('unit.name', 'like', '%' . $request->unit . '%');
+            }
+            if ($request->filled('unit_detail')) {
+                $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
+            }
+            if ($request->filled('shift')) {
+                $query->where('shift.name', 'like', '%' . $request->shift . '%');
+            }
         }
 
         $pegawais = $query->get();
