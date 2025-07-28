@@ -90,6 +90,7 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::get('presensi/detail-history-by-unit', [\App\Http\Controllers\PresensiController::class, 'detailHistoryByAdminUnit']);
     Route::put('presensi/update-by-admin-unit/{pegawai_id}/{tanggal}', [\App\Http\Controllers\PresensiController::class, 'updatePresensiByAdminUnitBulk']);
     Route::get('presensi/rekap-bulanan-pegawai', [PresensiController::class, 'rekapBulananByPegawai']);
+    Route::get('presensi/rekap-bulanan-semua-pegawai', [PresensiController::class, 'rekapPresensiBulananByAdminUnit']);
 
     // Izin
     Route::get('izin', [\App\Http\Controllers\IzinController::class, 'index']);
