@@ -674,4 +674,224 @@ class PresensiController extends Controller
             'updated' => $updated
         ]);
     }
+
+    public function rekapBulananUnitByAdmin(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin || $admin->role !== 'admin_unit') {
+            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        }
+        $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
+        $bulanSekarang = now('Asia/Jakarta')->month;
+        $result = [];
+        $namaBulan = [
+            1 => 'januari',
+            2 => 'februari',
+            3 => 'maret',
+            4 => 'april',
+            5 => 'mei',
+            6 => 'juni',
+            7 => 'juli',
+            8 => 'agustus',
+            9 => 'september',
+            10 => 'oktober',
+            11 => 'november',
+            12 => 'desember'
+        ];
+        for ($bulan = 1; $bulan <= $bulanSekarang; $bulan++) {
+            // Ambil semua pegawai di unit admin
+            $pegawais = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
+                $q->where('unit_id', $admin->unit_id);
+            })->get();
+            $rekapBulan = [
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'cuti' => 0,
+                'tidak_hadir' => 0,
+                'belum_presensi' => 0
+            ];
+            $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
+            $end = $start->copy()->endOfMonth();
+            $jumlahHari = $end->day;
+            foreach ($pegawais as $pegawai) {
+                // Ambil presensi pegawai di bulan tsb
+                $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
+                    ->whereBetween('waktu', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+                    ->orderBy('waktu')
+                    ->get();
+                $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
+                    ->where('status', 'diterima')
+                    ->where(function ($q) use ($start, $end) {
+                        $q->whereBetween('tanggal_mulai', [$start, $end])
+                            ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                    })->get();
+                $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
+                    ->where('status', 'diterima')
+                    ->where(function ($q) use ($start, $end) {
+                        $q->whereBetween('tanggal_mulai', [$start, $end])
+                            ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                    })->get();
+                $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
+                    ->where('status', 'diterima')
+                    ->where(function ($q) use ($start, $end) {
+                        $q->whereBetween('tanggal_mulai', [$start, $end])
+                            ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                    })->get();
+                for ($hari = 1; $hari <= $jumlahHari; $hari++) {
+                    $tanggal = $start->copy()->day($hari)->format('Y-m-d');
+                    $status = null;
+                    $presensiHari = $presensi->where(fn($p) => $p->waktu->format('Y-m-d') === $tanggal);
+                    if ($presensiHari->count()) {
+                        if ($presensiHari->where('status_presensi', 'hadir')->count()) {
+                            $status = 'hadir';
+                        } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
+                            $status = 'tidak_hadir';
+                        } else {
+                            $status = 'lain';
+                        }
+                    }
+                    if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                        foreach ($izin as $i) {
+                            if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
+                                $status = 'izin';
+                                break;
+                            }
+                        }
+                    }
+                    if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                        foreach ($cuti as $c) {
+                            if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
+                                $status = 'cuti';
+                                break;
+                            }
+                        }
+                    }
+                    if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                        foreach ($sakit as $s) {
+                            if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
+                                $status = 'sakit';
+                                break;
+                            }
+                        }
+                    }
+                    if (!$status) {
+                        $status = 'belum_presensi';
+                    }
+                    if (isset($rekapBulan[$status])) {
+                        $rekapBulan[$status]++;
+                    }
+                }
+            }
+            $result[] = array_merge(['bulan' => $namaBulan[$bulan]], $rekapBulan);
+        }
+        return response()->json($result);
+    }
+
+    public function rekapBulananByPegawai(Request $request)
+    {
+        $pegawai_id = $request->query('pegawai_id');
+        $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
+        $bulanSekarang = now('Asia/Jakarta')->month;
+        $pegawai = \App\Models\MsPegawai::find($pegawai_id);
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
+        }
+        $result = [];
+        $namaBulan = [
+            1 => 'januari',
+            2 => 'februari',
+            3 => 'maret',
+            4 => 'april',
+            5 => 'mei',
+            6 => 'juni',
+            7 => 'juli',
+            8 => 'agustus',
+            9 => 'september',
+            10 => 'oktober',
+            11 => 'november',
+            12 => 'desember'
+        ];
+        for ($bulan = 1; $bulan <= $bulanSekarang; $bulan++) {
+            $rekapBulan = [
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'cuti' => 0,
+                'tidak_hadir' => 0,
+                'belum_presensi' => 0
+            ];
+            $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
+            $end = $start->copy()->endOfMonth();
+            $jumlahHari = $end->day;
+            $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
+                ->whereBetween('waktu', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+                ->orderBy('waktu')
+                ->get();
+            $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('tanggal_mulai', [$start, $end])
+                        ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                })->get();
+            $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('tanggal_mulai', [$start, $end])
+                        ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                })->get();
+            $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('tanggal_mulai', [$start, $end])
+                        ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                })->get();
+            for ($hari = 1; $hari <= $jumlahHari; $hari++) {
+                $tanggal = $start->copy()->day($hari)->format('Y-m-d');
+                $status = null;
+                $presensiHari = $presensi->where(fn($p) => $p->waktu->format('Y-m-d') === $tanggal);
+                if ($presensiHari->count()) {
+                    if ($presensiHari->where('status_presensi', 'hadir')->count()) {
+                        $status = 'hadir';
+                    } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
+                        $status = 'tidak_hadir';
+                    } else {
+                        $status = 'lain';
+                    }
+                }
+                if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                    foreach ($izin as $i) {
+                        if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
+                            $status = 'izin';
+                            break;
+                        }
+                    }
+                }
+                if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                    foreach ($cuti as $c) {
+                        if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
+                            $status = 'cuti';
+                            break;
+                        }
+                    }
+                }
+                if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                    foreach ($sakit as $s) {
+                        if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
+                            $status = 'sakit';
+                            break;
+                        }
+                    }
+                }
+                if (!$status) {
+                    $status = 'belum_presensi';
+                }
+                if (isset($rekapBulan[$status])) {
+                    $rekapBulan[$status]++;
+                }
+            }
+            $result[] = array_merge(['bulan' => $namaBulan[$bulan]], $rekapBulan);
+        }
+        return response()->json($result);
+    }
 }
