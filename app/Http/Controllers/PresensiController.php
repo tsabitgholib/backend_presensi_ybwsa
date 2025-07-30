@@ -632,7 +632,7 @@ class PresensiController extends Controller
                 }
 
                 // Cari presensi pulang (absen_pulang, pulang_awal)
-                $pulang = $presensiHari->whereIn('status', ['absen_pulang', 'pulang_awal'])->first();
+                $pulang = $presensiHari->whereIn('status', ['absen_pulang', 'pulang_awal', 'tidak_absen_pulang'])->first();
                 if (!$pulang) {
                     $pulang = $presensiHari->where('status', 'tidak_masuk')->first();
                 }
