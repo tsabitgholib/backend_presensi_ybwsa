@@ -28,7 +28,7 @@ class ShiftController extends Controller
                 'updated_at' => $shift->updated_at,
                 'shift_detail' => $shift->shiftDetail
             ];
-        })->groupBy('unit_name');
+        });
         return response()->json($data);
     }
 

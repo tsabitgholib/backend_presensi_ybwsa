@@ -663,14 +663,43 @@ class PresensiController extends Controller
                 ];
             }
 
+            // Ambil unit detail name
+            $unitDetailName = null;
+            if ($pegawai->unit_detail_id_presensi) {
+                $unitDetail = \App\Models\UnitDetail::find($pegawai->unit_detail_id_presensi);
+                $unitDetailName = $unitDetail ? $unitDetail->name : null;
+            }
+
+            // Hitung status presensi keseluruhan (jika masuk dan pulang sama-sama hadir)
+            $statusPresensiKeseluruhan = 'tidak_hadir';
+            $totalHadir = 0;
+            $totalPresensi = 0;
+
+            foreach ($presensiBerpasangan as $presensi) {
+                if ($presensi['masuk'] && $presensi['masuk']['status_presensi'] === 'hadir') {
+                    $totalHadir++;
+                }
+                if ($presensi['pulang'] && $presensi['pulang']['status_presensi'] === 'hadir') {
+                    $totalHadir++;
+                }
+                if ($presensi['masuk']) $totalPresensi++;
+                if ($presensi['pulang']) $totalPresensi++;
+            }
+
+            if ($totalPresensi > 0) {
+                $statusPresensiKeseluruhan = ($totalHadir > 0) ? 'hadir' : 'tidak_hadir';
+            }
+
             $result[] = [
                 'pegawai' => [
                     'id' => $pegawai->id,
                     'nama' => $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : ''),
                     'no_ktp' => $pegawai->no_ktp,
                     'unit_detail_id_presensi' => $pegawai->unit_detail_id_presensi,
+                    'unit_detail_name' => $unitDetailName,
+                    'status_presensi' => $statusPresensiKeseluruhan,
                 ],
-                'presensi_list' => $presensiBerpasangan
+                'presensi_berpasangan' => $presensiBerpasangan
             ];
         }
         return response()->json($result);
