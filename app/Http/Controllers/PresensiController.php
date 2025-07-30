@@ -699,7 +699,7 @@ class PresensiController extends Controller
                     'unit_detail_name' => $unitDetailName,
                     'status_presensi' => $statusPresensiKeseluruhan,
                 ],
-                'presensi_berpasangan' => $presensiBerpasangan
+                'presensi_list' => $presensiBerpasangan
             ];
         }
         return response()->json($result);
