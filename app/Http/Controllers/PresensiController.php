@@ -616,7 +616,7 @@ class PresensiController extends Controller
             if ($to) {
                 $presensiQuery->whereDate('waktu', '<=', $to);
             }
-            $presensi = $presensiQuery->orderBy('waktu', 'desc')->get();
+            $presensi = $presensiQuery->orderBy('waktu', 'asc')->get();
 
             // Kelompokkan presensi berdasarkan tanggal
             $presensiByDate = $presensi->groupBy(function ($item) {
