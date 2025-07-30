@@ -17,7 +17,6 @@ class ShiftController extends Controller
             $query = Shift::with(['unit', 'shiftDetail'])
                 ->where('unit_id', $unitId);
         } else {
-            // super_admin atau tidak ada admin, tampilkan semua
             $query = Shift::with(['unit', 'shiftDetail']);
         }
         $data = $query->get()->map(function ($shift) {
@@ -29,7 +28,7 @@ class ShiftController extends Controller
                 'updated_at' => $shift->updated_at,
                 'shift_detail' => $shift->shiftDetail
             ];
-        });
+        })->groupBy('unit_name');
         return response()->json($data);
     }
 

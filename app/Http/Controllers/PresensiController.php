@@ -582,6 +582,7 @@ class PresensiController extends Controller
     /**
      * Detail history presensi pegawai di unit detail tertentu (admin unit)
      * Bisa filter by pegawai, dan update presensi oleh admin unit
+     * Menampilkan data presensi berpasangan (masuk dan pulang) dalam satu hari
      */
     public function detailHistoryByAdminUnit(Request $request)
     {
@@ -616,6 +617,52 @@ class PresensiController extends Controller
                 $presensiQuery->whereDate('waktu', '<=', $to);
             }
             $presensi = $presensiQuery->orderBy('waktu', 'desc')->get();
+
+            // Kelompokkan presensi berdasarkan tanggal
+            $presensiByDate = $presensi->groupBy(function ($item) {
+                return $item->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->toDateString();
+            });
+
+            $presensiBerpasangan = [];
+            foreach ($presensiByDate as $tanggal => $presensiHari) {
+                // Cari presensi masuk (absen_masuk, terlambat, hadir_hari_libur)
+                $masuk = $presensiHari->whereIn('status', ['absen_masuk', 'terlambat', 'hadir_hari_libur'])->first();
+                if (!$masuk) {
+                    $masuk = $presensiHari->whereIn('status', ['tidak_absen_masuk', 'tidak_masuk'])->first();
+                }
+
+                // Cari presensi pulang (absen_pulang, pulang_awal)
+                $pulang = $presensiHari->whereIn('status', ['absen_pulang', 'pulang_awal'])->first();
+                if (!$pulang) {
+                    $pulang = $presensiHari->where('status', 'tidak_masuk')->first();
+                }
+
+                $presensiBerpasangan[] = [
+                    'tanggal' => $tanggal,
+                    'hari' => \Carbon\Carbon::parse($tanggal)->locale('id')->isoFormat('dddd'),
+                    'masuk' => $masuk ? [
+                        'id' => $masuk->id,
+                        'waktu' => $masuk->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
+                        'status' => $masuk->status,
+                        'status_presensi' => $masuk->status_presensi,
+                        'lokasi' => $masuk->lokasi,
+                        'keterangan' => $masuk->keterangan,
+                        'created_at' => $masuk->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+                        'updated_at' => $masuk->updated_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+                    ] : null,
+                    'pulang' => $pulang ? [
+                        'id' => $pulang->id,
+                        'waktu' => $pulang->waktu->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
+                        'status' => $pulang->status,
+                        'status_presensi' => $pulang->status_presensi,
+                        'lokasi' => $pulang->lokasi,
+                        'keterangan' => $pulang->keterangan,
+                        'created_at' => $pulang->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+                        'updated_at' => $pulang->updated_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+                    ] : null,
+                ];
+            }
+
             $result[] = [
                 'pegawai' => [
                     'id' => $pegawai->id,
@@ -623,7 +670,7 @@ class PresensiController extends Controller
                     'no_ktp' => $pegawai->no_ktp,
                     'unit_detail_id_presensi' => $pegawai->unit_detail_id_presensi,
                 ],
-                'presensi' => $presensi
+                'presensi_list' => $presensiBerpasangan
             ];
         }
         return response()->json($result);
