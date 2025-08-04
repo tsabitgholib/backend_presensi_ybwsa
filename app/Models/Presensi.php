@@ -15,11 +15,25 @@ class Presensi extends Model
         'status',
         'status_presensi',
         'lokasi',
-        'keterangan'
+        'keterangan',
+        // Kolom baru untuk presensi masuk dan pulang
+        'waktu_masuk',
+        'waktu_pulang',
+        'status_masuk',
+        'status_pulang',
+        'lokasi_masuk',
+        'lokasi_pulang',
+        'keterangan_masuk',
+        'keterangan_pulang'
     ];
     protected $casts = [
         'lokasi' => 'array',
         'waktu' => 'datetime',
+        // Cast untuk kolom baru
+        'lokasi_masuk' => 'array',
+        'lokasi_pulang' => 'array',
+        'waktu_masuk' => 'datetime',
+        'waktu_pulang' => 'datetime',
     ];
 
     public function pegawai()
