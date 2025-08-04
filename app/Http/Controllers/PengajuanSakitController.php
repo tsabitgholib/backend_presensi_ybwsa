@@ -72,6 +72,28 @@ class PengajuanSakitController extends Controller
         $pengajuan->keterangan_admin = $request->keterangan_admin;
         $pengajuan->save();
 
+        // Integrasikan ke presensi jika diterima
+        if ($request->status === 'diterima') {
+            $presensiController = new \App\Http\Controllers\PresensiController();
+            $keterangan = "Pengajuan sakit: {$pengajuan->alasan}";
+            $presensiController->integratePengajuanToPresensi(
+                $pengajuan->pegawai_id,
+                'sakit',
+                $pengajuan->tanggal_mulai,
+                $pengajuan->tanggal_selesai,
+                $keterangan
+            );
+        } else {
+            // Hapus dari presensi jika ditolak
+            $presensiController = new \App\Http\Controllers\PresensiController();
+            $presensiController->removePengajuanFromPresensi(
+                $pengajuan->pegawai_id,
+                'sakit',
+                $pengajuan->tanggal_mulai,
+                $pengajuan->tanggal_selesai
+            );
+        }
+
         return response()->json(['message' => 'Status pengajuan diperbarui', 'data' => $pengajuan]);
     }
 

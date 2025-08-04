@@ -428,75 +428,32 @@ class PresensiController extends Controller
             $tanggalList[] = $date->format('Y-m-d');
         }
 
-        // Ambil presensi pegawai di bulan tsb (format baru)
+        // Ambil presensi pegawai di bulan tsb (format baru) - termasuk sakit, izin, cuti
         $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
             ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
             ->orderBy('waktu_masuk')
             ->get();
 
-        // Ambil pengajuan izin, cuti, sakit yang diterima di bulan tsb
-        $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
-            ->where('status', 'diterima')
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('tanggal_mulai', [$start, $end])
-                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
-            })->get();
-        $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
-            ->where('status', 'diterima')
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('tanggal_mulai', [$start, $end])
-                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
-            })->get();
-        $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
-            ->where('status', 'diterima')
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('tanggal_mulai', [$start, $end])
-                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
-            })->get();
-
         // Rekap per tanggal (1 hari hanya 1 status, prioritas: hadir > izin > sakit > cuti > tidak hadir > lain > belum presensi)
         $rekap = [];
         foreach ($tanggalList as $tanggal) {
             $status = null;
-            // Cek presensi (hadir/tidak hadir/lain) - format baru
+            // Cek presensi (hadir/tidak hadir/izin/sakit/cuti) - format baru
             $presensiHari = $presensi->where(fn($p) => $p->waktu_masuk->format('Y-m-d') === $tanggal);
             if ($presensiHari->count()) {
-                // Prioritas hadir
-                if ($presensiHari->where('status_presensi', 'hadir')->count()) {
+                $presensiRecord = $presensiHari->first();
+                // Ambil status dari kolom status_presensi atau status_masuk
+                if ($presensiRecord->status_presensi === 'hadir') {
                     $status = 'hadir';
-                } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
+                } elseif ($presensiRecord->status_presensi === 'tidak_hadir') {
                     $status = 'tidak_hadir';
+                } elseif (in_array($presensiRecord->status_masuk, ['izin', 'sakit', 'cuti'])) {
+                    $status = $presensiRecord->status_masuk;
                 } else {
                     $status = 'lain';
                 }
             }
-            // Cek izin
-            if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
-                foreach ($izin as $i) {
-                    if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
-                        $status = 'izin';
-                        break;
-                    }
-                }
-            }
-            // Cek cuti
-            if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
-                foreach ($cuti as $c) {
-                    if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
-                        $status = 'cuti';
-                        break;
-                    }
-                }
-            }
-            // Cek sakit
-            if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
-                foreach ($sakit as $s) {
-                    if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
-                        $status = 'sakit';
-                        break;
-                    }
-                }
-            }
+            
             // Jika belum ada status
             if (!$status) {
                 $status = 'belum_presensi';
@@ -1077,5 +1034,82 @@ class PresensiController extends Controller
             ];
         }
         return response()->json($result);
+    }
+
+    /**
+     * Integrasikan pengajuan sakit, izin, cuti ke tabel presensi
+     * Dipanggil ketika admin approve pengajuan
+     */
+    public function integratePengajuanToPresensi($pegawai_id, $jenis_pengajuan, $tanggal_mulai, $tanggal_selesai, $keterangan = null)
+    {
+        $pegawai = \App\Models\MsPegawai::find($pegawai_id);
+        if (!$pegawai) {
+            return false;
+        }
+
+        // Generate tanggal range
+        $start = \Carbon\Carbon::parse($tanggal_mulai);
+        $end = \Carbon\Carbon::parse($tanggal_selesai);
+        
+        // Loop setiap tanggal dalam range
+        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            $tanggal = $date->format('Y-m-d');
+            
+            // Cek apakah sudah ada presensi di tanggal tersebut
+            $existingPresensi = Presensi::where('no_ktp', $pegawai->no_ktp)
+                ->whereDate('waktu_masuk', $tanggal)
+                ->first();
+            
+            if ($existingPresensi) {
+                // Update presensi yang sudah ada
+                $existingPresensi->update([
+                    'status_masuk' => $jenis_pengajuan,
+                    'status_presensi' => $jenis_pengajuan,
+                    'keterangan_masuk' => $keterangan ?? "Pengajuan {$jenis_pengajuan} yang disetujui",
+                ]);
+            } else {
+                // Buat presensi baru
+                Presensi::create([
+                    'no_ktp' => $pegawai->no_ktp,
+                    'shift_id' => $pegawai->shift_detail_id ? \App\Models\ShiftDetail::find($pegawai->shift_detail_id)->shift_id : null,
+                    'shift_detail_id' => $pegawai->shift_detail_id,
+                    'waktu_masuk' => $date->setTime(8, 0, 0), // Default jam 8 pagi
+                    'status_masuk' => $jenis_pengajuan,
+                    'lokasi_masuk' => null,
+                    'keterangan_masuk' => $keterangan ?? "Pengajuan {$jenis_pengajuan} yang disetujui",
+                    'status_presensi' => $jenis_pengajuan,
+                    // Backward compatibility
+                    'waktu' => $date->setTime(8, 0, 0),
+                    'status' => $jenis_pengajuan,
+                    'lokasi' => null,
+                    'keterangan' => $keterangan ?? "Pengajuan {$jenis_pengajuan} yang disetujui",
+                ]);
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Hapus integrasi pengajuan dari presensi (ketika pengajuan ditolak/dibatalkan)
+     */
+    public function removePengajuanFromPresensi($pegawai_id, $jenis_pengajuan, $tanggal_mulai, $tanggal_selesai)
+    {
+        $pegawai = \App\Models\MsPegawai::find($pegawai_id);
+        if (!$pegawai) {
+            return false;
+        }
+
+        $start = \Carbon\Carbon::parse($tanggal_mulai);
+        $end = \Carbon\Carbon::parse($tanggal_selesai);
+        
+        // Hapus presensi yang dibuat dari pengajuan
+        Presensi::where('no_ktp', $pegawai->no_ktp)
+            ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+            ->where('status_masuk', $jenis_pengajuan)
+            ->where('keterangan_masuk', 'like', "Pengajuan {$jenis_pengajuan} yang disetujui%")
+            ->delete();
+            
+        return true;
     }
 }
