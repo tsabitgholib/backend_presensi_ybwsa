@@ -199,7 +199,7 @@ class ShiftController extends Controller
         $request->validate([
             'shift_detail_id' => 'required|exists:shift_detail,id',
             'pegawai_ids' => 'required|array',
-            'pegawai_ids.*' => 'exists:ms_pegawai,id',
+            'pegawai_ids.*' => 'exists:pegawai,id',
         ]);
         $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
             ->update(['shift_detail_id' => $request->shift_detail_id]);

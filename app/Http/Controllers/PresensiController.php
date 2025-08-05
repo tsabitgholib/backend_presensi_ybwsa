@@ -136,37 +136,37 @@ class PresensiController extends Controller
         }
 
         // Simpan presensi masuk
-        $presensi = Presensi::create([
-            'no_ktp' => $pegawai->no_ktp,
-            'shift_id' => $shiftDetail->shift_id,
-            'shift_detail_id' => $shiftDetail->id,
+            $presensi = Presensi::create([
+                'no_ktp' => $pegawai->no_ktp,
+                'shift_id' => $shiftDetail->shift_id,
+                'shift_detail_id' => $shiftDetail->id,
             'waktu_masuk' => $waktuMasukUntukSimpan, // Gunakan waktu yang sudah ditentukan
             'status_masuk' => $statusMasuk,
             'lokasi_masuk' => $request->lokasi,
             'keterangan_masuk' => $keteranganMasuk,
             'status_presensi' => in_array($statusMasuk, ['absen_masuk', 'terlambat']) ? 'hadir' : 'tidak_hadir',
             // Backward compatibility - tetap isi kolom lama
-            'waktu' => $waktuMasukUntukSimpan,
-            'status' => $statusMasuk,
-            'lokasi' => $request->lokasi,
-            'keterangan' => $keteranganMasuk,
-        ]);
+            //'waktu' => $waktuMasukUntukSimpan,
+            //'status' => $statusMasuk,
+            //    'lokasi' => $request->lokasi,
+            //'keterangan' => $keteranganMasuk,
+            ]);
 
-        $shift_name = $shiftDetail->shift ? $shiftDetail->shift->name : null;
-        return response()->json([
-            'no_ktp' => $presensi->no_ktp,
-            'shift_name' => $shift_name,
-            'shift_detail_id' => $presensi->shift_detail_id,
+            $shift_name = $shiftDetail->shift ? $shiftDetail->shift->name : null;
+            return response()->json([
+                'no_ktp' => $presensi->no_ktp,
+                'shift_name' => $shift_name,
+                'shift_detail_id' => $presensi->shift_detail_id,
             'tanggal' => $presensi->waktu_masuk->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d'),
             'waktu' => $presensi->waktu_masuk->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
             'status' => $presensi->status_masuk,
             'lokasi' => $presensi->lokasi_masuk,
             'keterangan' => $presensi->keterangan_masuk,
-            'updated_at' => $presensi->updated_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
-            'created_at' => $presensi->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
-            'id' => $presensi->id,
-        ]);
-    }
+                'updated_at' => $presensi->updated_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+                'created_at' => $presensi->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
+                'id' => $presensi->id,
+            ]);
+        }
 
     private function handlePresensiPulang(Request $request, $presensi, $now, $shiftDetail, $jamPulang, $tolPulang)
     {
@@ -359,7 +359,7 @@ class PresensiController extends Controller
             $result[] = [
                 'id' => $pegawai->id,
                 'no_ktp' => $pegawai->no_ktp,
-                'nama' => $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : ''),
+                'nama' => $pegawai->nama,
                 'total_hadir' => $total_hadir,
                 'total_tidak_masuk' => $total_tidak_masuk,
                 'total_izin' => $total_izin,
@@ -379,7 +379,7 @@ class PresensiController extends Controller
         $tanggal = $request->query('tanggal');
         $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
             $q->where('unit_id', $admin->unit_id);
-        })->get(['id', 'no_ktp', 'nama_depan', 'nama_belakang']);
+        })->get(['id', 'no_ktp', 'nama']);
         $no_ktps = $pegawais->pluck('no_ktp');
         $pegawaiMap = $pegawais->keyBy('no_ktp');
         
@@ -394,9 +394,10 @@ class PresensiController extends Controller
             return [
                 'id' => $p->id,
                 'no_ktp' => $p->no_ktp,
-                'nama' => $pegawai ? $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : '') : null,
+                'nama' => $pegawai ? $pegawai->nama : null,
                 'status_masuk' => $p->status_masuk,
                 'status_pulang' => $p->status_pulang,
+                'status_presensi' => $p->status_presensi,
                 'waktu_masuk' => $p->waktu_masuk,
                 'waktu_pulang' => $p->waktu_pulang,
                 'keterangan_masuk' => $p->keterangan_masuk,
@@ -533,11 +534,12 @@ class PresensiController extends Controller
                 $presensiBerpasangan[] = [
                     'tanggal' => $p->waktu_masuk->format('Y-m-d'),
                     'hari' => $p->waktu_masuk->locale('id')->isoFormat('dddd'),
+                    'status_presensi' => $p->status_presensi,
                     'masuk' => [
                         'id' => $p->id,
                         'waktu' => $p->waktu_masuk->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
                         'status' => $p->status_masuk,
-                        'status_presensi' => $p->status_presensi,
+                        //'status_presensi' => $p->status_presensi,
                         'lokasi' => $p->lokasi_masuk,
                         'keterangan' => $p->keterangan_masuk,
                         'created_at' => $p->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
@@ -547,7 +549,7 @@ class PresensiController extends Controller
                         'id' => $p->id,
                         'waktu' => $p->waktu_pulang->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
                         'status' => $p->status_pulang,
-                        'status_presensi' => $p->status_presensi,
+                        //'status_presensi' => $p->status_presensi,
                         'lokasi' => $p->lokasi_pulang,
                         'keterangan' => $p->keterangan_pulang,
                         'created_at' => $p->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
@@ -568,39 +570,39 @@ class PresensiController extends Controller
             $totalHadir = 0;
             $totalPresensi = 0;
 
-            foreach ($presensiBerpasangan as $presensi) {
-                if ($presensi['masuk'] && $presensi['masuk']['status_presensi'] === 'hadir') {
-                    $totalHadir++;
-                }
-                if ($presensi['pulang'] && $presensi['pulang']['status_presensi'] === 'hadir') {
-                    $totalHadir++;
-                }
-                if ($presensi['masuk']) $totalPresensi++;
-                if ($presensi['pulang']) $totalPresensi++;
-            }
+            // foreach ($presensiBerpasangan as $presensi) {
+            //     if ($presensi['masuk'] && $presensi['masuk']['status_presensi'] === 'hadir') {
+            //         $totalHadir++;
+            //     }
+            //     if ($presensi['pulang'] && $presensi['pulang']['status_presensi'] === 'hadir') {
+            //         $totalHadir++;
+            //     }
+            //     if ($presensi['masuk']) $totalPresensi++;
+            //     if ($presensi['pulang']) $totalPresensi++;
+            // }
 
-            if ($totalPresensi > 0) {
-                $persentaseHadir = ($totalHadir / $totalPresensi) * 100;
-                if ($persentaseHadir >= 80) {
-                    $statusPresensiKeseluruhan = 'hadir';
-                } elseif ($persentaseHadir >= 50) {
-                    $statusPresensiKeseluruhan = 'cukup';
-                } else {
-                    $statusPresensiKeseluruhan = 'tidak_hadir';
-                }
-            }
+            // if ($totalPresensi > 0) {
+            //     $persentaseHadir = ($totalHadir / $totalPresensi) * 100;
+            //     if ($persentaseHadir >= 80) {
+            //         $statusPresensiKeseluruhan = 'hadir';
+            //     } elseif ($persentaseHadir >= 50) {
+            //         $statusPresensiKeseluruhan = 'cukup';
+            //     } else {
+            //         $statusPresensiKeseluruhan = 'tidak_hadir';
+            //     }
+            // }
 
             $result[] = [
                 'pegawai' => [
                     'id' => $pegawai->id,
                     'no_ktp' => $pegawai->no_ktp,
-                    'nama' => $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : ''),
+                    'nama' => $pegawai->nama,
                     'unit_detail_name' => $unitDetailName,
                 ],
-                'status_presensi_keseluruhan' => $statusPresensiKeseluruhan,
-                'total_hadir' => $totalHadir,
-                'total_presensi' => $totalPresensi,
-                'persentase_hadir' => $totalPresensi > 0 ? round(($totalHadir / $totalPresensi) * 100, 2) : 0,
+                //'status_presensi_keseluruhan' => $statusPresensiKeseluruhan,
+                //'total_hadir' => $totalHadir,
+                //'total_presensi' => $totalPresensi,
+                //'persentase_hadir' => $totalPresensi > 0 ? round(($totalHadir / $totalPresensi) * 100, 2) : 0,
                 'presensi' => $presensiBerpasangan,
             ];
         }
@@ -664,7 +666,7 @@ class PresensiController extends Controller
             }
             
             $presensi->update($updateData);
-            $updated[] = $presensi;
+                    $updated[] = $presensi;
         }
         return response()->json([
             'message' => 'Presensi berhasil diupdate',
@@ -1015,7 +1017,7 @@ class PresensiController extends Controller
             $result[] = [
                 'no' => $no++,
                 'nik' => $pegawai->no_ktp,
-                'nama_pegawai' => trim($pegawai->nama_depan . ' ' . ($pegawai->nama_tengah ?? '') . ' ' . ($pegawai->nama_belakang ?? '')),
+                'nama_pegawai' => $pegawai->nama,
                 'unit_kerja' => $unitDetailName,
                 'hari_efektif' => $hariEfektif,
                 'jumlah_hadir' => $jumlahHadir,
@@ -1079,10 +1081,10 @@ class PresensiController extends Controller
                     'keterangan_masuk' => $keterangan ?? "Pengajuan {$jenis_pengajuan} yang disetujui",
                     'status_presensi' => $jenis_pengajuan,
                     // Backward compatibility
-                    'waktu' => $date->setTime(8, 0, 0),
-                    'status' => $jenis_pengajuan,
-                    'lokasi' => null,
-                    'keterangan' => $keterangan ?? "Pengajuan {$jenis_pengajuan} yang disetujui",
+                    //'waktu' => $date->setTime(8, 0, 0),
+                    //'status' => $jenis_pengajuan,
+                    //'lokasi' => null,
+                    //'keterangan' => $keterangan ?? "Pengajuan {$jenis_pengajuan} yang disetujui",
                 ]);
             }
         }

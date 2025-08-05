@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class MsPegawai extends Model
 {
-    protected $table = 'ms_pegawai';
+    protected $table = 'pegawai';
     protected $fillable = [
         'id_old_pegawai',
         'id_unit',
@@ -18,9 +18,7 @@ class MsPegawai extends Model
         'id_user',
         'id_sync',
         'no_ktp',
-        'nama_depan',
-        'nama_tengah',
-        'nama_belakang',
+        'nama',
         'gelar_depan',
         'gelar_belakang',
         'tmpt_lahir',

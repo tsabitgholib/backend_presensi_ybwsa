@@ -15,12 +15,14 @@ class AuthPegawaiController extends Controller
             'no_ktp' => 'required',
             'password' => 'required',
         ]);
-
+    
         $pegawai = MsPegawai::where('no_ktp', $request->no_ktp)->first();
-        if (!$pegawai || !Hash::check($request->password, $pegawai->password)) {
+    
+        // Cek apakah data pegawai ditemukan dan password sama dengan no_ktp
+        if (!$pegawai || $request->password !== $request->no_ktp) {
             return response()->json(['message' => 'NIK atau password salah'], 401);
         }
-
+    
         $payload = [
             'sub' => $pegawai->id,
             'no_ktp' => $pegawai->no_ktp,
@@ -28,12 +30,13 @@ class AuthPegawaiController extends Controller
             'exp' => time() + 86400 // expired 1 hari
         ];
         $token = JWT::encode($payload, env('JWT_SECRET'));
-
+    
         return response()->json([
             'message' => 'Login berhasil',
             'token' => $token
         ]);
     }
+    
 
     public function me(Request $request)
     {

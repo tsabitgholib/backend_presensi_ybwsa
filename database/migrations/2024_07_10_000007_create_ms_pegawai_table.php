@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('ms_pegawai', function (Blueprint $table) {
+        Schema::create('pegawai', function (Blueprint $table) {
             $table->id();
             $table->integer('id_old_pegawai')->nullable();
             $table->integer('id_unit')->nullable();
@@ -20,9 +20,7 @@ return new class extends Migration
             $table->integer('id_user')->nullable();
             $table->integer('id_sync')->nullable();
             $table->string('no_ktp')->nullable();
-            $table->string('nama_depan')->nullable();
-            $table->string('nama_tengah')->nullable();
-            $table->string('nama_belakang')->nullable();
+            $table->string('nama')->nullable();
             $table->string('gelar_depan')->nullable();
             $table->string('gelar_belakang')->nullable();
             $table->string('tmpt_lahir')->nullable();
@@ -55,6 +53,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('ms_pegawai');
+        Schema::dropIfExists('pegawai');
     }
 };

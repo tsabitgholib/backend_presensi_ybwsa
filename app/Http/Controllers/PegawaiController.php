@@ -11,33 +11,28 @@ class PegawaiController extends Controller
 {
     public function index(Request $request)
     {
-        $query = DB::table('ms_pegawai')
-            ->leftJoin('unit_detail', 'ms_pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
+        $query = DB::table('pegawai')
+            ->leftJoin('unit_detail', 'pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
             ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
-            ->leftJoin('shift_detail', 'ms_pegawai.shift_detail_id', '=', 'shift_detail.id')
+            ->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
             ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
-            ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name');
+            ->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name');
 
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('ms_pegawai.nama_depan', 'like', "%$search%")
-                    ->orWhere('ms_pegawai.nama_tengah', 'like', "%$search%")
-                    ->orWhere('ms_pegawai.nama_belakang', 'like', "%$search%")
-                    ->orWhere('ms_pegawai.no_ktp', 'like', "%$search%")
+                $q->where('pegawai.nama', 'like', "%$search%")
+                    ->orWhere('pegawai.no_ktp', 'like', "%$search%")
                     ->orWhere('unit.name', 'like', "%$search%")
                     ->orWhere('unit_detail.name', 'like', "%$search%")
                     ->orWhere('shift.name', 'like', "%$search%");
             });
         } else {
             if ($request->filled('nama')) {
-                $query->where(function ($q) use ($request) {
-                    $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
-                        ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
-                });
+                $query->where('pegawai.nama', 'like', '%' . $request->nama . '%');
             }
             if ($request->filled('nik')) {
-                $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+                $query->where('pegawai.no_ktp', 'like', '%' . $request->nik . '%');
             }
             if ($request->filled('unit')) {
                 $query->where('unit.name', 'like', '%' . $request->unit . '%');
@@ -57,20 +52,20 @@ class PegawaiController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'no_ktp' => 'required|unique:ms_pegawai,no_ktp',
-            'nama_depan' => 'required',
-            'email' => 'required|email|unique:ms_pegawai,email',
+            'no_ktp' => 'required|unique:pegawai,no_ktp',
+            'nama' => 'required',
+            'email' => 'required|email|unique:pegawai,email',
             'password' => 'required|min:6',
             'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
         ]);
         try {
             $pegawai = MsPegawai::create([
                 'no_ktp' => $request->no_ktp,
-                'nama_depan' => $request->nama_depan,
+                'nama' => $request->nama,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'unit_detail_id_presensi' => $request->unit_detail_id_presensi,
-            ] + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id_presensi']));
+            ] + $request->except(['no_ktp', 'nama', 'email', 'password', 'unit_detail_id_presensi']));
             return response()->json($pegawai);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
@@ -84,18 +79,18 @@ class PegawaiController extends Controller
             return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
         }
         $request->validate([
-            'no_ktp' => 'sometimes|required|unique:ms_pegawai,no_ktp,' . $id,
-            'nama_depan' => 'sometimes|required',
-            'email' => 'sometimes|required|email|unique:ms_pegawai,email,' . $id,
+            'no_ktp' => 'sometimes|required|unique:pegawai,no_ktp,' . $id,
+            'nama' => 'sometimes|required',
+            'email' => 'sometimes|required|email|unique:pegawai,email,' . $id,
             'password' => 'nullable|min:6',
             'unit_detail_id_presensi' => 'sometimes|required|exists:unit_detail,id',
         ]);
         try {
-            $data = $request->only(['no_ktp', 'nama_depan', 'email', 'unit_detail_id_presensi']);
+            $data = $request->only(['no_ktp', 'nama', 'email', 'unit_detail_id_presensi']);
             if ($request->filled('password')) {
                 $data['password'] = Hash::make($request->password);
             }
-            $pegawai->update($data + $request->except(['no_ktp', 'nama_depan', 'email', 'password', 'unit_detail_id_presensi']));
+            $pegawai->update($data + $request->except(['no_ktp', 'nama', 'email', 'password', 'unit_detail_id_presensi']));
             return response()->json($pegawai);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
@@ -122,34 +117,29 @@ class PegawaiController extends Controller
         if (!$admin || $admin->role !== 'admin_unit') {
             return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
         }
-        $query = DB::table('ms_pegawai')
-            ->leftJoin('unit_detail', 'ms_pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
+        $query = DB::table('pegawai')
+            ->leftJoin('unit_detail', 'pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
             ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
-            ->leftJoin('shift_detail', 'ms_pegawai.shift_detail_id', '=', 'shift_detail.id')
+            ->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
             ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
-            ->select('ms_pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name')
+            ->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name')
             ->where('unit_detail.unit_id', $admin->unit_id);
 
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('ms_pegawai.nama_depan', 'like', "%$search%")
-                    ->orWhere('ms_pegawai.nama_tengah', 'like', "%$search%")
-                    ->orWhere('ms_pegawai.nama_belakang', 'like', "%$search%")
-                    ->orWhere('ms_pegawai.no_ktp', 'like', "%$search%")
+                $q->where('pegawai.nama', 'like', "%$search%")
+                    ->orWhere('pegawai.no_ktp', 'like', "%$search%")
                     ->orWhere('unit.name', 'like', "%$search%")
                     ->orWhere('unit_detail.name', 'like', "%$search%")
                     ->orWhere('shift.name', 'like', "%$search%");
             });
         } else {
             if ($request->filled('nama')) {
-                $query->where(function ($q) use ($request) {
-                    $q->where('ms_pegawai.nama_depan', 'like', '%' . $request->nama . '%')
-                        ->orWhere('ms_pegawai.nama_belakang', 'like', '%' . $request->nama . '%');
-                });
+                $query->where('pegawai.nama', 'like', '%' . $request->nama . '%');
             }
             if ($request->filled('nik')) {
-                $query->where('ms_pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+                $query->where('pegawai.no_ktp', 'like', '%' . $request->nik . '%');
             }
             if ($request->filled('unit')) {
                 $query->where('unit.name', 'like', '%' . $request->unit . '%');
@@ -175,7 +165,7 @@ class PegawaiController extends Controller
         $request->validate([
             'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
             'pegawai_ids' => 'required|array',
-            'pegawai_ids.*' => 'exists:ms_pegawai,id',
+            'pegawai_ids.*' => 'exists:pegawai,id',
         ]);
         $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
             ->update(['unit_detail_id_presensi' => $request->unit_detail_id_presensi]);
@@ -206,7 +196,7 @@ class PegawaiController extends Controller
         return response()->json([
             'pegawai_id' => $pegawai->id,
             'no_ktp' => $pegawai->no_ktp,
-            'nama' => $pegawai->nama_depan . ($pegawai->nama_belakang ? ' ' . $pegawai->nama_belakang : ''),
+            'nama' => $pegawai->nama,
             'lokasi_presensi' => [
                 'unit_detail_id' => $pegawai->unitDetailPresensi->id,
                 'nama_lokasi' => $pegawai->unitDetailPresensi->name,

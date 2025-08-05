@@ -147,7 +147,7 @@ class UnitDetailController extends Controller
         $request->validate([
             'unit_detail_id' => 'required|exists:unit_detail,id',
             'pegawai_ids' => 'required|array',
-            'pegawai_ids.*' => 'exists:ms_pegawai,id',
+            'pegawai_ids.*' => 'exists:pegawai,id',
         ]);
 
         // Validasi unit detail milik unit admin

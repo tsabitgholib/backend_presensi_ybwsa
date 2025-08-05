@@ -37,8 +37,8 @@ class PengajuanCutiController extends Controller
         $unitId = $admin->unit_id;
 
         $pengajuan = PengajuanCuti::query()
-            ->join('ms_pegawai', 'pengajuan_cuti.pegawai_id', '=', 'ms_pegawai.id')
-            ->join('unit_detail', 'unit_detail.id', '=', 'ms_pegawai.unit_detail_id_presensi')
+                            ->join('pegawai', 'pengajuan_cuti.pegawai_id', '=', 'pegawai.id')
+                ->join('unit_detail', 'unit_detail.id', '=', 'pegawai.unit_detail_id_presensi')
             ->where('unit_detail.unit_id', $unitId)
             ->orderBy('pengajuan_cuti.id', 'desc')
             ->select('pengajuan_cuti.*')->paginate(10);
@@ -74,7 +74,7 @@ class PengajuanCutiController extends Controller
         // Integrasikan ke presensi jika diterima
         if ($request->status === 'diterima') {
             $presensiController = new \App\Http\Controllers\PresensiController();
-            $keterangan = "Pengajuan cuti: {$pengajuan->alasan}";
+            $keterangan = "{$pengajuan->alasan}";
             $presensiController->integratePengajuanToPresensi(
                 $pengajuan->pegawai_id,
                 'cuti',

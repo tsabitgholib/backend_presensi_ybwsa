@@ -16,13 +16,13 @@ return new class extends Migration
             $table->string('no_ktp');
             $table->unsignedBigInteger('shift_id');
             $table->unsignedBigInteger('shift_detail_id');
-            $table->timestamp('waktu');
-            $table->string('status');
-            $table->json('lokasi');
-            $table->string('keterangan')->nullable();
+            //$table->timestamp('waktu');
+            //$table->string('status');
+            //$table->json('lokasi');
+            //$table->string('keterangan')->nullable();
             $table->timestamps();
 
-            $table->foreign('no_ktp')->references('no_ktp')->on('ms_pegawai')->onDelete('cascade');
+            $table->foreign('no_ktp')->references('no_ktp')->on('pegawai')->onDelete('cascade');
             $table->foreign('shift_id')->references('id')->on('shift')->onDelete('cascade');
             $table->foreign('shift_detail_id')->references('id')->on('shift_detail')->onDelete('cascade');
         });

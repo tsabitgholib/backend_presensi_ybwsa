@@ -22,7 +22,7 @@ return new class extends Migration
             $table->text('keterangan_admin')->nullable();
             $table->timestamps();
 
-            $table->foreign('pegawai_id')->references('id')->on('ms_pegawai')->onDelete('cascade');
+            $table->foreign('pegawai_id')->references('id')->on('pegawai')->onDelete('cascade');
             $table->foreign('izin_id')->references('id')->on('izin')->onDelete('cascade');
             $table->foreign('admin_unit_id')->references('id')->on('admin')->onDelete('set null');
         });

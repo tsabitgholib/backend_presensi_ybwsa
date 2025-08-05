@@ -169,8 +169,7 @@ Endpoint ini sekarang mengembalikan data lengkap dengan relasi yang diperlukan:
 {
   "id": 1,
   "no_ktp": "1234567890",
-  "nama_depan": "John",
-  "nama_belakang": "Doe",
+  "nama": "John Doe",
   "shift_detail_id": 1,
   "unit_detail_id_presensi": 1,
   "shift_detail": {
