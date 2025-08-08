@@ -2,6 +2,35 @@
 
 namespace App\Http\Controllers;
 
+/**
+ * Status Presensi yang Standar:
+ * 
+ * Status Masuk:
+ * - absen_masuk: Absen masuk tepat waktu
+ * - terlambat: Terlambat absen masuk
+ * - tidak_absen_masuk: Tidak absen masuk
+ * - tidak_hadir: Tidak hadir
+ * - izin: Izin
+ * - sakit: Sakit
+ * - cuti: Cuti
+ * 
+ * Status Pulang:
+ * - absen_pulang: Absen pulang tepat waktu
+ * - pulang_awal: Pulang sebelum waktu pulang
+ * - tidak_absen_pulang: Tidak absen pulang
+ * - tidak_hadir: Tidak hadir
+ * - izin: Izin
+ * - sakit: Sakit
+ * - cuti: Cuti
+ * 
+ * Status Presensi (Final):
+ * - hadir: Hadir (dihitung dari status masuk/pulang yang hadir)
+ * - tidak_hadir: Tidak hadir
+ * - sakit: Sakit
+ * - izin: Izin
+ * - cuti: Cuti
+ */
+
 use Illuminate\Http\Request;
 use App\Models\Presensi;
 use App\Models\MsPegawai;
@@ -10,6 +39,7 @@ use App\Models\ShiftDetail;
 use App\Models\UnitDetail;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\AdminUnitHelper;
 
 class PresensiController extends Controller
 {
@@ -131,7 +161,7 @@ class PresensiController extends Controller
         }
 
         if (!$statusMasuk) {
-            $statusMasuk = 'tidak_masuk';
+            $statusMasuk = 'tidak_absen_masuk';
             $keteranganMasuk = 'Tidak absen masuk';
         }
 
@@ -231,14 +261,26 @@ class PresensiController extends Controller
 
     private function calculateFinalStatus($statusMasuk, $statusPulang)
     {
-        // Jika salah satu hadir, maka status akhir adalah hadir
-        $hadirStatuses = ['absen_masuk', 'terlambat', 'absen_pulang', 'pulang_awal'];
+        // Status yang dianggap hadir
+        $hadirStatuses = \App\Models\Presensi::getHadirStatuses();
         
-        if (in_array($statusMasuk, $hadirStatuses) || in_array($statusPulang, $hadirStatuses)) {
-            return 'hadir';
+        // Status khusus yang tidak dihitung sebagai hadir
+        $specialStatuses = \App\Models\Presensi::getSpecialStatuses();
+        
+        // Jika ada status khusus, gunakan status tersebut
+        if (in_array($statusMasuk, $specialStatuses)) {
+            return $statusMasuk;
+        }
+        if (in_array($statusPulang, $specialStatuses)) {
+            return $statusPulang;
         }
         
-        return 'tidak_hadir';
+        // Jika salah satu hadir, maka status akhir adalah hadir
+        if (in_array($statusMasuk, $hadirStatuses) || in_array($statusPulang, $hadirStatuses)) {
+            return \App\Models\Presensi::STATUS_PRESENSI_HADIR;
+        }
+        
+        return \App\Models\Presensi::STATUS_PRESENSI_TIDAK_HADIR;
     }
 
     // Presensi hari ini (masuk & keluar)
@@ -319,12 +361,20 @@ class PresensiController extends Controller
     public function rekapPresensiByAdminUnit(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         $tanggal = $request->query('tanggal');
-        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
-            $q->where('unit_id', $admin->unit_id);
+        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
+            $q->where('unit_id', $unitId);
         })->get();
         $result = [];
         foreach ($pegawais as $pegawai) {
@@ -373,12 +423,20 @@ class PresensiController extends Controller
     public function historyByAdminUnit(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         $tanggal = $request->query('tanggal');
-        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
-            $q->where('unit_id', $admin->unit_id);
+        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
+            $q->where('unit_id', $unitId);
         })->get(['id', 'no_ktp', 'nama']);
         $no_ktps = $pegawais->pluck('no_ktp');
         $pegawaiMap = $pegawais->keyBy('no_ktp');
@@ -410,86 +468,6 @@ class PresensiController extends Controller
     }
 
     /**
-     * Rekap history presensi pegawai per bulan (pegawai yang login)
-     */
-    public function rekapHistoryBulananPegawai(Request $request)
-    {
-        $pegawai = $request->get('pegawai');
-        if (!$pegawai) {
-            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
-        }
-        $bulan = $request->query('bulan', now('Asia/Jakarta')->month);
-        $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
-
-        // Ambil semua tanggal di bulan tsb
-        $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
-        $end = $start->copy()->endOfMonth();
-        $tanggalList = [];
-        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-            $tanggalList[] = $date->format('Y-m-d');
-        }
-
-        // Ambil presensi pegawai di bulan tsb (format baru) - termasuk sakit, izin, cuti
-        $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
-            ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
-            ->orderBy('waktu_masuk')
-            ->get();
-
-        // Rekap per tanggal (1 hari hanya 1 status, prioritas: hadir > izin > sakit > cuti > tidak hadir > lain > belum presensi)
-        $rekap = [];
-        foreach ($tanggalList as $tanggal) {
-            $status = null;
-            // Cek presensi (hadir/tidak hadir/izin/sakit/cuti) - format baru
-            $presensiHari = $presensi->where(fn($p) => $p->waktu_masuk->format('Y-m-d') === $tanggal);
-            if ($presensiHari->count()) {
-                $presensiRecord = $presensiHari->first();
-                // Ambil status dari kolom status_presensi atau status_masuk
-                if ($presensiRecord->status_presensi === 'hadir') {
-                    $status = 'hadir';
-                } elseif ($presensiRecord->status_presensi === 'tidak_hadir') {
-                    $status = 'tidak_hadir';
-                } elseif (in_array($presensiRecord->status_masuk, ['izin', 'sakit', 'cuti'])) {
-                    $status = $presensiRecord->status_masuk;
-                } else {
-                    $status = 'lain';
-                }
-            }
-            
-            // Jika belum ada status
-            if (!$status) {
-                $status = 'belum_presensi';
-            }
-            $rekap[$tanggal] = $status;
-        }
-
-        // Hitung jumlah per status dan kumpulkan tanggalnya
-        $result = [
-            'hadir' => 0,
-            'izin' => 0,
-            'sakit' => 0,
-            'cuti' => 0,
-            'tidak_hadir' => 0,
-            'belum_presensi' => 0,
-            'tanggal_hadir' => [],
-            'tanggal_izin' => [],
-            'tanggal_sakit' => [],
-            'tanggal_cuti' => [],
-            'tanggal_tidak_hadir' => [],
-            'tanggal_belum_presensi' => [],
-        ];
-        foreach ($rekap as $tanggal => $status) {
-            $tgl = date('d', strtotime($tanggal));
-            if (isset($result[$status])) {
-                $result[$status]++;
-                $result['tanggal_' . $status][] = $tgl;
-            }
-        }
-        $result['bulan'] = $bulan;
-        $result['tahun'] = $tahun;
-        return response()->json($result);
-    }
-
-    /**
      * Detail history presensi pegawai di unit detail tertentu (admin unit)
      * Bisa filter by pegawai, dan update presensi oleh admin unit
      * Menampilkan data presensi berpasangan (masuk dan pulang) dalam satu hari
@@ -497,17 +475,25 @@ class PresensiController extends Controller
     public function detailHistoryByAdminUnit(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         $unit_detail_id = $request->query('unit_detail_id');
         $pegawai_id = $request->query('pegawai_id');
         $from = $request->query('from');
         $to = $request->query('to');
 
         // Ambil semua pegawai di unit admin (jika unit_detail_id tidak diisi, ambil semua di unit admin)
-        $pegawaiQuery = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin, $unit_detail_id) {
-            $q->where('unit_id', $admin->unit_id);
+        $pegawaiQuery = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId, $unit_detail_id) {
+            $q->where('unit_id', $unitId);
             if ($unit_detail_id) {
                 $q->where('id', $unit_detail_id);
             }
@@ -539,7 +525,6 @@ class PresensiController extends Controller
                         'id' => $p->id,
                         'waktu' => $p->waktu_masuk->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
                         'status' => $p->status_masuk,
-                        //'status_presensi' => $p->status_presensi,
                         'lokasi' => $p->lokasi_masuk,
                         'keterangan' => $p->keterangan_masuk,
                         'created_at' => $p->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
@@ -549,7 +534,6 @@ class PresensiController extends Controller
                         'id' => $p->id,
                         'waktu' => $p->waktu_pulang->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
                         'status' => $p->status_pulang,
-                        //'status_presensi' => $p->status_presensi,
                         'lokasi' => $p->lokasi_pulang,
                         'keterangan' => $p->keterangan_pulang,
                         'created_at' => $p->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
@@ -565,33 +549,6 @@ class PresensiController extends Controller
                 $unitDetailName = $unitDetail ? $unitDetail->name : null;
             }
 
-            // Hitung status presensi keseluruhan (jika masuk dan pulang sama-sama hadir)
-            $statusPresensiKeseluruhan = 'tidak_hadir';
-            $totalHadir = 0;
-            $totalPresensi = 0;
-
-            // foreach ($presensiBerpasangan as $presensi) {
-            //     if ($presensi['masuk'] && $presensi['masuk']['status_presensi'] === 'hadir') {
-            //         $totalHadir++;
-            //     }
-            //     if ($presensi['pulang'] && $presensi['pulang']['status_presensi'] === 'hadir') {
-            //         $totalHadir++;
-            //     }
-            //     if ($presensi['masuk']) $totalPresensi++;
-            //     if ($presensi['pulang']) $totalPresensi++;
-            // }
-
-            // if ($totalPresensi > 0) {
-            //     $persentaseHadir = ($totalHadir / $totalPresensi) * 100;
-            //     if ($persentaseHadir >= 80) {
-            //         $statusPresensiKeseluruhan = 'hadir';
-            //     } elseif ($persentaseHadir >= 50) {
-            //         $statusPresensiKeseluruhan = 'cukup';
-            //     } else {
-            //         $statusPresensiKeseluruhan = 'tidak_hadir';
-            //     }
-            // }
-
             $result[] = [
                 'pegawai' => [
                     'id' => $pegawai->id,
@@ -599,10 +556,6 @@ class PresensiController extends Controller
                     'nama' => $pegawai->nama,
                     'unit_detail_name' => $unitDetailName,
                 ],
-                //'status_presensi_keseluruhan' => $statusPresensiKeseluruhan,
-                //'total_hadir' => $totalHadir,
-                //'total_presensi' => $totalPresensi,
-                //'persentase_hadir' => $totalPresensi > 0 ? round(($totalHadir / $totalPresensi) * 100, 2) : 0,
                 'presensi' => $presensiBerpasangan,
             ];
         }
@@ -610,27 +563,41 @@ class PresensiController extends Controller
     }
 
     /**
-     * Update 2 presensi (masuk & keluar) pegawai pada tanggal yang sama oleh admin unit
-     * pegawai_id dan tanggal di parameter
+     * Update presensi pegawai secara bulk oleh admin unit
      */
     public function updatePresensiByAdminUnitBulk(Request $request, $pegawai_id, $tanggal)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
+
         $updates = $request->input('updates');
         if (!$pegawai_id || !$tanggal || !is_array($updates)) {
             return response()->json(['message' => 'pegawai_id, tanggal, dan updates wajib diisi'], 422);
+        }
+        
+        // Validasi format tanggal
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+            return response()->json(['message' => 'Format tanggal tidak valid. Gunakan format YYYY-MM-DD'], 422);
         }
         $pegawai = \App\Models\MsPegawai::find($pegawai_id);
         if (!$pegawai) {
             return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
         }
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         // Validasi pegawai milik unit admin
-        if (!$pegawai->unitDetailPresensi || $pegawai->unitDetailPresensi->unit_id != $admin->unit_id) {
+        if (!$pegawai->unitDetailPresensi || $pegawai->unitDetailPresensi->unit_id != $unitId) {
             return response()->json(['message' => 'Tidak memiliki akses edit presensi pegawai ini'], 403);
         }
+
         // Menggunakan format baru - 1 row per hari
         $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
             ->whereDate('waktu_masuk', $tanggal)
@@ -645,6 +612,43 @@ class PresensiController extends Controller
             $waktuMasuk = $update['waktu_masuk'] ?? null;
             $waktuPulang = $update['waktu_pulang'] ?? null;
             
+            // Validasi status masuk
+            if ($statusMasuk && !\App\Models\Presensi::isValidStatusMasuk($statusMasuk)) {
+                return response()->json(['message' => 'Status masuk tidak valid'], 422);
+            }
+            
+            // Validasi status pulang
+            if ($statusPulang && !\App\Models\Presensi::isValidStatusPulang($statusPulang)) {
+                return response()->json(['message' => 'Status pulang tidak valid'], 422);
+            }
+            
+            // Konversi input waktu jika dalam format jam (HH:mm)
+            if ($waktuMasuk && !str_contains($waktuMasuk, '-') && !str_contains($waktuMasuk, 'T')) {
+                // Validasi format jam (HH:mm)
+                if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $waktuMasuk)) {
+                    return response()->json(['message' => 'Format waktu masuk tidak valid. Gunakan format HH:mm'], 422);
+                }
+                $waktuMasuk = $tanggal . ' ' . $waktuMasuk . ':00';
+            }
+            
+            if ($waktuPulang && !str_contains($waktuPulang, '-') && !str_contains($waktuPulang, 'T')) {
+                // Validasi format jam (HH:mm)
+                if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $waktuPulang)) {
+                    return response()->json(['message' => 'Format waktu pulang tidak valid. Gunakan format HH:mm'], 422);
+                }
+                $waktuPulang = $tanggal . ' ' . $waktuPulang . ':00';
+            }
+            
+            // Validasi logika waktu (waktu pulang harus setelah waktu masuk)
+            if ($waktuMasuk && $waktuPulang) {
+                $waktuMasukObj = \Carbon\Carbon::parse($waktuMasuk);
+                $waktuPulangObj = \Carbon\Carbon::parse($waktuPulang);
+                
+                if ($waktuPulangObj->lte($waktuMasukObj)) {
+                    return response()->json(['message' => 'Waktu pulang harus setelah waktu masuk'], 422);
+                }
+            }
+            
             // Update presensi dengan data baru
             $updateData = array_filter([
                 'status_masuk' => $statusMasuk,
@@ -655,6 +659,7 @@ class PresensiController extends Controller
                 'lokasi_pulang' => $update['lokasi_pulang'] ?? null,
                 'keterangan_masuk' => $update['keterangan_masuk'] ?? null,
                 'keterangan_pulang' => $update['keterangan_pulang'] ?? null,
+                'status_presensi' => $update['status_presensi'] ?? null,
             ], fn($v) => $v !== null);
             
             // Recalculate status_presensi jika ada perubahan status
@@ -666,7 +671,7 @@ class PresensiController extends Controller
             }
             
             $presensi->update($updateData);
-                    $updated[] = $presensi;
+            $updated[] = $presensi;
         }
         return response()->json([
             'message' => 'Presensi berhasil diupdate',
@@ -677,9 +682,17 @@ class PresensiController extends Controller
     public function rekapBulananUnitByAdmin(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
         $bulanSekarang = now('Asia/Jakarta')->month;
         $result = [];
@@ -699,8 +712,8 @@ class PresensiController extends Controller
         ];
         for ($bulan = 1; $bulan <= $bulanSekarang; $bulan++) {
             // Ambil semua pegawai di unit admin
-            $pegawais = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
-                $q->where('unit_id', $admin->unit_id);
+            $pegawais = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
+                $q->where('unit_id', $unitId);
             })->get();
             $rekapBulan = [
                 'hadir' => 0,
@@ -897,12 +910,108 @@ class PresensiController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * Hitung potongan penalty berdasarkan status presensi
+     */
+    private function calculatePenaltyAmount($presensi, $laukPaukUnit)
+    {
+        if (!$laukPaukUnit) {
+            return 0;
+        }
+
+        $totalPenalty = 0;
+
+        // Hitung potongan berdasarkan status masuk
+        switch ($presensi->status_masuk) {
+            case 'terlambat':
+                // Hitung keterlambatan dalam menit relatif terhadap shift
+                $penalty = $this->calculateTerlambatPenalty($presensi, $laukPaukUnit);
+                $totalPenalty += $penalty;
+                break;
+            case 'tidak_absen_masuk':
+                // Potongan untuk tidak masuk kerja tanpa izin
+                $totalPenalty += $laukPaukUnit->pot_tanpa_izin;
+                break;
+            case 'izin':
+                // Potongan untuk izin pribadi
+                $totalPenalty += $laukPaukUnit->pot_izin_pribadi;
+                break;
+            case 'sakit':
+                // Potongan untuk izin sakit
+                $totalPenalty += $laukPaukUnit->pot_sakit;
+                break;
+        }
+
+        // Hitung potongan berdasarkan status pulang
+        switch ($presensi->status_pulang) {
+            case 'pulang_awal':
+                // Cek apakah ada keterangan untuk menentukan alasan
+                if ($presensi->keterangan_pulang && !empty(trim($presensi->keterangan_pulang))) {
+                    $totalPenalty += $laukPaukUnit->pot_pulang_awal_beralasan;
+                } else {
+                    $totalPenalty += $laukPaukUnit->pot_pulang_awal_tanpa_beralasan;
+                }
+                break;
+        }
+
+        return $totalPenalty;
+    }
+
+    /**
+     * Hitung potongan terlambat berdasarkan rentang waktu
+     */
+    private function calculateTerlambatPenalty($presensi, $laukPaukUnit)
+    {
+        // Ambil shift detail untuk mendapatkan jam masuk dan toleransi
+        $shiftDetail = $presensi->shiftDetail;
+        if (!$shiftDetail) {
+            return $laukPaukUnit->pot_terlambat_0806_0900; // Default penalty
+        }
+
+        // Ambil jam masuk shift untuk hari tersebut
+        $hari = strtolower($presensi->waktu_masuk->locale('id')->isoFormat('dddd'));
+        $jamMasukKey = $hari . '_masuk';
+        $jamMasukShift = $shiftDetail->$jamMasukKey;
+        
+        if (!$jamMasukShift) {
+            return $laukPaukUnit->pot_terlambat_0806_0900; // Default penalty
+        }
+
+        // Hitung batas waktu tidak terlambat
+        $jamMasukCarbon = \Carbon\Carbon::createFromFormat('H:i', $jamMasukShift, 'Asia/Jakarta');
+        $toleransi = $shiftDetail->toleransi_terlambat ?? 0;
+        $batasTidakTerlambat = $jamMasukCarbon->copy()->addMinutes($toleransi);
+        
+        // Hitung waktu masuk pegawai
+        $waktuMasukPegawai = $presensi->waktu_masuk;
+        
+        // Hitung selisih keterlambatan dalam menit
+        $terlambatMenit = $waktuMasukPegawai->diffInMinutes($batasTidakTerlambat);
+        
+        // Mapping ke kategori potongan berdasarkan menit keterlambatan
+        if ($terlambatMenit <= 54) {
+            return $laukPaukUnit->pot_terlambat_0806_0900;
+        } elseif ($terlambatMenit <= 60) {
+            return $laukPaukUnit->pot_terlambat_0901_1000;
+        } else {
+            return $laukPaukUnit->pot_terlambat_setelah_1000;
+        }
+    }
+
     public function rekapPresensiBulananByAdminUnit(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         $bulan = (int) $request->query('bulan', now('Asia/Jakarta')->month);
         $tahun = (int) $request->query('tahun', now('Asia/Jakarta')->year);
         $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
@@ -913,19 +1022,21 @@ class PresensiController extends Controller
             $hariLiburMap[$hl->unit_detail_id][$hl->tanggal->format('Y-m-d')] = true;
         }
         $result = [];
-        $pegawais = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($admin) {
-            $q->where('unit_id', $admin->unit_id);
+        $pegawais = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
+            $q->where('unit_id', $unitId);
         })->with(['unitDetailPresensi'])->get();
         $no = 1;
         foreach ($pegawais as $pegawai) {
+            // ... rest of the existing code remains the same ...
             $unitDetail = $pegawai->unitDetailPresensi;
             $unitDetailName = $unitDetail ? $unitDetail->name : null;
             $unitId = $unitDetail ? $unitDetail->unit_id : null;
             // Ambil nominal lauk pauk dari tabel lauk_pauk_unit
             $nominalLaukPauk = 0;
+            $laukPaukUnit = null;
             if ($unitId) {
-                $laukPauk = \App\Models\LaukPaukUnit::where('unit_id', $unitId)->first();
-                $nominalLaukPauk = $laukPauk ? $laukPauk->nominal : 0;
+                $laukPaukUnit = \App\Models\LaukPaukUnit::where('unit_id', $unitId)->first();
+                $nominalLaukPauk = $laukPaukUnit ? $laukPaukUnit->nominal : 0;
             }
             // Hitung hari efektif (tidak termasuk sabtu/minggu dan hari libur)
             $hariEfektif = 0;
@@ -939,6 +1050,7 @@ class PresensiController extends Controller
             // Ambil presensi pegawai di bulan tsb (format baru)
             $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
                 ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+                ->with(['shiftDetail'])
                 ->get();
             $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
                 ->where('status', 'diterima')
@@ -1012,8 +1124,19 @@ class PresensiController extends Controller
             // Hitung presensi detail (format baru)
             $jumlahTerlambat = $presensi->where('status_masuk', 'terlambat')->count();
             $jumlahPulangAwal = $presensi->where('status_pulang', 'pulang_awal')->count();
-            $jumlahJamDatangKosong = $presensi->whereIn('status_masuk', ['tidak_absen_masuk', 'tidak_masuk'])->count();
-            $jumlahJamPulangKosong = $presensi->whereIn('status_pulang', ['tidak_absen_pulang', 'tidak_masuk'])->count();
+            $jumlahJamDatangKosong = $presensi->whereIn('status_masuk', ['tidak_absen_masuk'])->count();
+            $jumlahJamPulangKosong = $presensi->whereIn('status_pulang', ['tidak_absen_pulang'])->count();
+            
+            // Hitung total potongan penalty
+            $totalPotongan = 0;
+            foreach ($presensi as $p) {
+                $potongan = $this->calculatePenaltyAmount($p, $laukPaukUnit);
+                $totalPotongan += $potongan;
+            }
+            
+            // Hitung nominal lauk pauk setelah potongan (hanya untuk perhitungan internal)
+            $nominalLaukPaukSetelahPotongan = max(0, $nominalLaukPauk - $totalPotongan);
+            
             $result[] = [
                 'no' => $no++,
                 'nik' => $pegawai->no_ktp,
@@ -1032,7 +1155,7 @@ class PresensiController extends Controller
                 'jumlah_jam_pulang_kosong' => $jumlahJamPulangKosong,
                 'lembur' => 0,
                 'jumlah_libur' => $jumlahLibur,
-                'nominal_lauk_pauk' => $nominalLaukPauk
+                'nominal_lauk_pauk' => $nominalLaukPauk // Response tetap sama, tidak berubah
             ];
         }
         return response()->json($result);

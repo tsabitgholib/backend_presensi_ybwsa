@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Shift;
 use App\Models\ShiftDetail;
+use App\Helpers\AdminUnitHelper;
 
 class ShiftController extends Controller
 {
@@ -32,23 +33,27 @@ class ShiftController extends Controller
         return response()->json($data);
     }
 
-
-
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required',
-        ]);
-        // Ambil admin yang sedang login
         $admin = $request->get('admin');
         if (!$admin) {
             return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
-        // Ambil unit_id dari admin
-        $unitId = $admin->unit_id;
-        if (!$unitId) {
-            return response()->json(['message' => 'Unit tidak ditemukan untuk admin ini'], 400);
+
+        // Get validation rules using helper
+        $unitValidationRules = AdminUnitHelper::getUnitIdValidationRules($request);
+        
+        $request->validate(array_merge([
+            'name' => 'required',
+        ], $unitValidationRules));
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
         }
+        $unitId = $unitResult['unit_id'];
+
         try {
             $shift = Shift::create([
                 'name' => $request->name,
@@ -69,20 +74,8 @@ class ShiftController extends Controller
         $request->validate([
             'name' => 'sometimes|required',
         ]);
-        // Ambil admin yang sedang login
-        $admin = $request->get('admin');
-        if (!$admin) {
-            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
-        }
-        // Ambil unit_id dari admin
-        $unitId = $admin->unit_id;
-        if (!$unitId) {
-            return response()->json(['message' => 'Unit tidak ditemukan untuk admin ini'], 400);
-        }
         try {
-            $data = $request->only(['name']);
-            $data['unit_id'] = $unitId;
-            $shift->update($data);
+            $shift->update($request->only('name'));
             return response()->json($shift);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
@@ -103,85 +96,76 @@ class ShiftController extends Controller
         }
     }
 
-    // CRUD ShiftDetail (satu baris per shift)
-    public function storeDetail(Request $request)
+    // CRUD Shift Detail
+    public function storeShiftDetail(Request $request)
     {
         $request->validate([
             'shift_id' => 'required|exists:shift,id',
-            'toleransi_terlambat' => 'required|integer',
-            'toleransi_pulang' => 'required|integer',
+            'senin_masuk' => 'nullable|date_format:H:i',
+            'senin_pulang' => 'nullable|date_format:H:i',
+            'selasa_masuk' => 'nullable|date_format:H:i',
+            'selasa_pulang' => 'nullable|date_format:H:i',
+            'rabu_masuk' => 'nullable|date_format:H:i',
+            'rabu_pulang' => 'nullable|date_format:H:i',
+            'kamis_masuk' => 'nullable|date_format:H:i',
+            'kamis_pulang' => 'nullable|date_format:H:i',
+            'jumat_masuk' => 'nullable|date_format:H:i',
+            'jumat_pulang' => 'nullable|date_format:H:i',
+            'sabtu_masuk' => 'nullable|date_format:H:i',
+            'sabtu_pulang' => 'nullable|date_format:H:i',
+            'minggu_masuk' => 'nullable|date_format:H:i',
+            'minggu_pulang' => 'nullable|date_format:H:i',
+            'toleransi_terlambat' => 'nullable|integer|min:0',
+            'toleransi_pulang' => 'nullable|integer|min:0',
         ]);
         try {
-            $data = $request->only([
-                'shift_id',
-                'senin_masuk',
-                'senin_pulang',
-                'selasa_masuk',
-                'selasa_pulang',
-                'rabu_masuk',
-                'rabu_pulang',
-                'kamis_masuk',
-                'kamis_pulang',
-                'jumat_masuk',
-                'jumat_pulang',
-                'sabtu_masuk',
-                'sabtu_pulang',
-                'minggu_masuk',
-                'minggu_pulang',
-                'toleransi_terlambat',
-                'toleransi_pulang'
-            ]);
-            $detail = ShiftDetail::create($data);
-            return response()->json($detail);
+            $shiftDetail = ShiftDetail::create($request->all());
+            return response()->json($shiftDetail);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
         }
     }
 
-    public function updateDetail(Request $request, $id)
+    public function updateShiftDetail(Request $request, $id)
     {
-        $detail = ShiftDetail::find($id);
-        if (!$detail) {
+        $shiftDetail = ShiftDetail::find($id);
+        if (!$shiftDetail) {
             return response()->json(['message' => 'Shift detail tidak ditemukan'], 404);
         }
         $request->validate([
-            'toleransi_terlambat' => 'sometimes|required|integer',
-            'toleransi_pulang' => 'sometimes|required|integer',
+            'senin_masuk' => 'nullable|date_format:H:i',
+            'senin_pulang' => 'nullable|date_format:H:i',
+            'selasa_masuk' => 'nullable|date_format:H:i',
+            'selasa_pulang' => 'nullable|date_format:H:i',
+            'rabu_masuk' => 'nullable|date_format:H:i',
+            'rabu_pulang' => 'nullable|date_format:H:i',
+            'kamis_masuk' => 'nullable|date_format:H:i',
+            'kamis_pulang' => 'nullable|date_format:H:i',
+            'jumat_masuk' => 'nullable|date_format:H:i',
+            'jumat_pulang' => 'nullable|date_format:H:i',
+            'sabtu_masuk' => 'nullable|date_format:H:i',
+            'sabtu_pulang' => 'nullable|date_format:H:i',
+            'minggu_masuk' => 'nullable|date_format:H:i',
+            'minggu_pulang' => 'nullable|date_format:H:i',
+            'toleransi_terlambat' => 'nullable|integer|min:0',
+            'toleransi_pulang' => 'nullable|integer|min:0',
         ]);
         try {
-            $data = $request->only([
-                'senin_masuk',
-                'senin_pulang',
-                'selasa_masuk',
-                'selasa_pulang',
-                'rabu_masuk',
-                'rabu_pulang',
-                'kamis_masuk',
-                'kamis_pulang',
-                'jumat_masuk',
-                'jumat_pulang',
-                'sabtu_masuk',
-                'sabtu_pulang',
-                'minggu_masuk',
-                'minggu_pulang',
-                'toleransi_terlambat',
-                'toleransi_pulang'
-            ]);
-            $detail->update($data);
-            return response()->json($detail);
+            $shiftDetail->update($request->all());
+            return response()->json($shiftDetail);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
         }
     }
 
-    public function destroyDetail($id)
+    public function destroyShiftDetail($id)
     {
-        $detail = ShiftDetail::find($id);
-        if (!$detail) {
+        $shiftDetail = ShiftDetail::find($id);
+        if (!$shiftDetail) {
             return response()->json(['message' => 'Shift detail tidak ditemukan'], 404);
         }
         try {
-            $detail->delete();
+            $shiftDetail->delete();
             return response()->json(['message' => 'Shift detail deleted']);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);

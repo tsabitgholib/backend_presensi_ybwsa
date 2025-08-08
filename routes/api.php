@@ -15,6 +15,8 @@ use App\Http\Controllers\PengajuanCutiController;
 use App\Http\Controllers\PengajuanSakitController;
 use App\Http\Controllers\PengajuanIzinController;
 use App\Http\Controllers\LaukPaukUnitController;
+use App\Http\Controllers\DinasController;
+use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -148,4 +150,12 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::post('lauk-pauk/create', [\App\Http\Controllers\LaukPaukUnitController::class, 'store']);
     Route::put('lauk-pauk/update/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'update']);
     Route::delete('lauk-pauk/delete/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'destroy']);
+
+    // Dinas
+    Route::get('dinas', [\App\Http\Controllers\DinasController::class, 'index']);
+    Route::post('dinas/create', [\App\Http\Controllers\DinasController::class, 'store']);
+    Route::delete('dinas/delete', [\App\Http\Controllers\DinasController::class, 'destroy']);
+
+    // Dashboard
+    Route::get('dashboard', [DashboardController::class, 'index']);
 });

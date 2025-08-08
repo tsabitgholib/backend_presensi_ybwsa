@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\MsPegawai;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\AdminUnitHelper;
 
 class PegawaiController extends Controller
 {
@@ -114,16 +115,24 @@ class PegawaiController extends Controller
     public function getByUnitIdPresensi(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         $query = DB::table('pegawai')
             ->leftJoin('unit_detail', 'pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
             ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
             ->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
             ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
             ->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name')
-            ->where('unit_detail.unit_id', $admin->unit_id);
+            ->where('unit_detail.unit_id', $unitId);
 
         if ($request->filled('search')) {
             $search = $request->search;

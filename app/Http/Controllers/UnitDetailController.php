@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\UnitDetail;
+use App\Helpers\AdminUnitHelper;
 
 class UnitDetailController extends Controller
 {
@@ -140,19 +141,29 @@ class UnitDetailController extends Controller
     public function assignPegawai(Request $request)
     {
         $admin = $request->get('admin');
-        // if (!$admin || $admin->role !== 'admin_unit') {
-        //     return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        // }
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
 
-        $request->validate([
+        // Get validation rules using helper
+        $unitDetailValidationRules = AdminUnitHelper::getUnitIdValidationRules($request, 'unit_detail_id');
+        
+        $request->validate(array_merge([
             'unit_detail_id' => 'required|exists:unit_detail,id',
             'pegawai_ids' => 'required|array',
             'pegawai_ids.*' => 'exists:pegawai,id',
-        ]);
+        ], $unitDetailValidationRules));
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
 
         // Validasi unit detail milik unit admin
         $unitDetail = \App\Models\UnitDetail::where('id', $request->unit_detail_id)
-            //->where('unit_id', $admin->unit_id)
+            ->where('unit_id', $unitId)
             ->first();
         if (!$unitDetail) {
             return response()->json(['message' => 'Unit detail tidak ditemukan atau bukan milik unit admin'], 404);

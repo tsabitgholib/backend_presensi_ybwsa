@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\HariLibur;
 use App\Models\UnitDetail;
 use Carbon\Carbon;
+use App\Helpers\AdminUnitHelper;
 
 class HariLiburController extends Controller
 {
@@ -18,15 +19,22 @@ class HariLiburController extends Controller
     public function index(Request $request)
     {
         $admin = $request->get('admin');
-        // if (!$admin || $admin->role !== 'admin_unit') {
-        //     return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
-        // }
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
 
         $bulan = $request->query('bulan', Carbon::now()->month);
         $tahun = $request->query('tahun', Carbon::now()->year);
 
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         // Ambil semua unit detail dari unit admin yang login
-        $unitDetails = UnitDetail::where('unit_id', $admin->unit_id)->get();
+        $unitDetails = UnitDetail::where('unit_id', $unitId)->get();
         $unitDetailIds = $unitDetails->pluck('id');
 
         $hariLibur = HariLibur::whereIn('unit_detail_id', $unitDetailIds)
@@ -56,19 +64,29 @@ class HariLiburController extends Controller
     public function store(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
 
-        $request->validate([
+        // Get validation rules using helper
+        $unitDetailValidationRules = AdminUnitHelper::getUnitIdValidationRules($request, 'unit_detail_id');
+        
+        $request->validate(array_merge([
             'unit_detail_id' => 'required|exists:unit_detail,id',
             'tanggal' => 'required|date',
             'keterangan' => 'required|string|max:255',
-        ]);
+        ], $unitDetailValidationRules));
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
 
         // Validasi bahwa unit detail milik unit admin
         $unitDetail = UnitDetail::where('id', $request->unit_detail_id)
-            ->where('unit_id', $admin->unit_id)
+            ->where('unit_id', $unitId)
             ->first();
 
         if (!$unitDetail) {
@@ -109,30 +127,38 @@ class HariLiburController extends Controller
     public function storeMultiple(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
 
-        $request->validate([
+        // Get validation rules using helper
+        $unitDetailIdsValidationRules = AdminUnitHelper::getUnitDetailIdsValidationRules($request);
+        
+        $request->validate(array_merge([
             'unit_detail_ids' => 'required|array',
             'unit_detail_ids.*' => 'exists:unit_detail,id',
             'tanggal' => 'required|date',
             'keterangan' => 'required|string|max:255',
-        ]);
+        ], $unitDetailIdsValidationRules));
+
+        // Get unit_detail_ids using helper
+        $unitDetailIdsResult = AdminUnitHelper::getUnitDetailIds($request);
+        if ($unitDetailIdsResult['error']) {
+            return response()->json(['message' => $unitDetailIdsResult['error']], 400);
+        }
+        $unitDetailIds = $unitDetailIdsResult['unit_detail_ids'];
 
         // Validasi bahwa semua unit detail milik unit admin
-        $unitDetails = UnitDetail::whereIn('id', $request->unit_detail_ids)
-            ->where('unit_id', $admin->unit_id)
-            ->get();
+        $unitDetails = UnitDetail::whereIn('id', $unitDetailIds)->get();
 
-        if ($unitDetails->count() !== count($request->unit_detail_ids)) {
+        if ($unitDetails->count() !== count($unitDetailIds)) {
             return response()->json(['message' => 'Beberapa unit detail tidak ditemukan atau tidak memiliki akses'], 400);
         }
 
         $createdHariLibur = [];
         $errors = [];
 
-        foreach ($request->unit_detail_ids as $unitDetailId) {
+        foreach ($unitDetailIds as $unitDetailId) {
             // Cek apakah sudah ada hari libur untuk tanggal dan unit detail yang sama
             $existingHariLibur = HariLibur::where('unit_detail_id', $unitDetailId)
                 ->whereDate('tanggal', $request->tanggal)
@@ -171,26 +197,34 @@ class HariLiburController extends Controller
     public function updateMultiple(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
 
-        $request->validate([
+        // Get validation rules using helper
+        $unitDetailIdsValidationRules = AdminUnitHelper::getUnitDetailIdsValidationRules($request);
+        
+        $request->validate(array_merge([
             'unit_detail_ids' => 'required|array',
             'unit_detail_ids.*' => 'exists:unit_detail,id',
             'tanggal' => 'required|date',
             'keterangan' => 'required|string|max:255',
-        ]);
+        ], $unitDetailIdsValidationRules));
+
+        // Get unit_detail_ids using helper
+        $unitDetailIdsResult = AdminUnitHelper::getUnitDetailIds($request);
+        if ($unitDetailIdsResult['error']) {
+            return response()->json(['message' => $unitDetailIdsResult['error']], 400);
+        }
+        $unitDetailIds = $unitDetailIdsResult['unit_detail_ids'];
 
         // Validasi bahwa semua unit detail milik unit admin
-        $unitDetails = UnitDetail::whereIn('id', $request->unit_detail_ids)
-            ->where('unit_id', $admin->unit_id)
-            ->get();
-        if ($unitDetails->count() !== count($request->unit_detail_ids)) {
+        $unitDetails = UnitDetail::whereIn('id', $unitDetailIds)->get();
+        if ($unitDetails->count() !== count($unitDetailIds)) {
             return response()->json(['message' => 'Beberapa unit detail tidak ditemukan atau tidak memiliki akses'], 400);
         }
 
-        $updated = HariLibur::whereIn('unit_detail_id', $request->unit_detail_ids)
+        $updated = HariLibur::whereIn('unit_detail_id', $unitDetailIds)
             ->whereDate('tanggal', $request->tanggal)
             ->update(['keterangan' => $request->keterangan]);
 
@@ -206,25 +240,33 @@ class HariLiburController extends Controller
     public function deleteMultiple(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
 
-        $request->validate([
+        // Get validation rules using helper
+        $unitDetailIdsValidationRules = AdminUnitHelper::getUnitDetailIdsValidationRules($request);
+        
+        $request->validate(array_merge([
             'unit_detail_ids' => 'required|array',
             'unit_detail_ids.*' => 'exists:unit_detail,id',
             'tanggal' => 'required|date',
-        ]);
+        ], $unitDetailIdsValidationRules));
+
+        // Get unit_detail_ids using helper
+        $unitDetailIdsResult = AdminUnitHelper::getUnitDetailIds($request);
+        if ($unitDetailIdsResult['error']) {
+            return response()->json(['message' => $unitDetailIdsResult['error']], 400);
+        }
+        $unitDetailIds = $unitDetailIdsResult['unit_detail_ids'];
 
         // Validasi bahwa semua unit detail milik unit admin
-        $unitDetails = UnitDetail::whereIn('id', $request->unit_detail_ids)
-            ->where('unit_id', $admin->unit_id)
-            ->get();
-        if ($unitDetails->count() !== count($request->unit_detail_ids)) {
+        $unitDetails = UnitDetail::whereIn('id', $unitDetailIds)->get();
+        if ($unitDetails->count() !== count($unitDetailIds)) {
             return response()->json(['message' => 'Beberapa unit detail tidak ditemukan atau tidak memiliki akses'], 400);
         }
 
-        $deleted = HariLibur::whereIn('unit_detail_id', $request->unit_detail_ids)
+        $deleted = HariLibur::whereIn('unit_detail_id', $unitDetailIds)
             ->whereDate('tanggal', $request->tanggal)
             ->delete();
 

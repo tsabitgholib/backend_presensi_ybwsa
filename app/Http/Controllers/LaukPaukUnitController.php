@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\LaukPaukUnit;
+use App\Helpers\AdminUnitHelper;
 
 class LaukPaukUnitController extends Controller
 {
@@ -22,13 +23,20 @@ class LaukPaukUnitController extends Controller
     public function showByAdminUnit(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
-        $unit_id = $admin->unit_id;
-        $laukPauk = \App\Models\LaukPaukUnit::where('unit_id', $unit_id)->first();
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
+        $laukPauk = \App\Models\LaukPaukUnit::where('unit_id', $unitId)->first();
         if (!$laukPauk) {
-            return response()->json(['unit_id' => $unit_id, 'nominal' => 0]);
+            return response()->json(['unit_id' => $unitId, 'nominal' => 0]);
         }
         return response()->json($laukPauk);
     }
@@ -36,16 +44,46 @@ class LaukPaukUnitController extends Controller
     public function store(Request $request)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
-        $request->validate([
+
+        // Get validation rules using helper
+        $unitValidationRules = AdminUnitHelper::getUnitIdValidationRules($request);
+        
+        $request->validate(array_merge([
             'nominal' => 'required|numeric|min:0',
-        ]);
-        $unit_id = $admin->unit_id;
+            // Validasi untuk kolom penalty
+            'pot_izin_pribadi' => 'nullable|numeric|min:0',
+            'pot_tanpa_izin' => 'nullable|numeric|min:0',
+            'pot_sakit' => 'nullable|numeric|min:0',
+            'pot_pulang_awal_beralasan' => 'nullable|numeric|min:0',
+            'pot_pulang_awal_tanpa_beralasan' => 'nullable|numeric|min:0',
+            'pot_terlambat_0806_0900' => 'nullable|numeric|min:0',
+            'pot_terlambat_0901_1000' => 'nullable|numeric|min:0',
+            'pot_terlambat_setelah_1000' => 'nullable|numeric|min:0',
+        ], $unitValidationRules));
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
         $data = \App\Models\LaukPaukUnit::updateOrCreate(
-            ['unit_id' => $unit_id],
-            ['nominal' => $request->nominal]
+            ['unit_id' => $unitId],
+            [
+                'nominal' => $request->nominal,
+                'pot_izin_pribadi' => $request->pot_izin_pribadi ?? 50000,
+                'pot_tanpa_izin' => $request->pot_tanpa_izin ?? 100000,
+                'pot_sakit' => $request->pot_sakit ?? 10000,
+                'pot_pulang_awal_beralasan' => $request->pot_pulang_awal_beralasan ?? 20000,
+                'pot_pulang_awal_tanpa_beralasan' => $request->pot_pulang_awal_tanpa_beralasan ?? 30000,
+                'pot_terlambat_0806_0900' => $request->pot_terlambat_0806_0900 ?? 20000,
+                'pot_terlambat_0901_1000' => $request->pot_terlambat_0901_1000 ?? 30000,
+                'pot_terlambat_setelah_1000' => $request->pot_terlambat_setelah_1000 ?? 40000,
+            ]
         );
         return response()->json($data);
     }
@@ -53,21 +91,59 @@ class LaukPaukUnitController extends Controller
     public function update(Request $request, $id)
     {
         $admin = $request->get('admin');
-        if (!$admin || $admin->role !== 'admin_unit') {
-            return response()->json(['message' => 'Hanya admin unit yang boleh mengakses.'], 403);
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
-        $request->validate([
+
+        // Get validation rules using helper
+        $unitValidationRules = AdminUnitHelper::getUnitIdValidationRules($request);
+        
+        $request->validate(array_merge([
             'nominal' => 'required|numeric|min:0',
-        ]);
-        $unit_id = $admin->unit_id;
-        $data = \App\Models\LaukPaukUnit::where('unit_id', $unit_id)->first();
+            // Validasi untuk kolom penalty
+            'pot_izin_pribadi' => 'nullable|numeric|min:0',
+            'pot_tanpa_izin' => 'nullable|numeric|min:0',
+            'pot_sakit' => 'nullable|numeric|min:0',
+            'pot_pulang_awal_beralasan' => 'nullable|numeric|min:0',
+            'pot_pulang_awal_tanpa_beralasan' => 'nullable|numeric|min:0',
+            'pot_terlambat_0806_0900' => 'nullable|numeric|min:0',
+            'pot_terlambat_0901_1000' => 'nullable|numeric|min:0',
+            'pot_terlambat_setelah_1000' => 'nullable|numeric|min:0',
+        ], $unitValidationRules));
+
+        // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
+        $data = \App\Models\LaukPaukUnit::where('unit_id', $unitId)->first();
         if (!$data) {
             $data = \App\Models\LaukPaukUnit::create([
-                'unit_id' => $unit_id,
-                'nominal' => $request->nominal
+                'unit_id' => $unitId,
+                'nominal' => $request->nominal,
+                'pot_izin_pribadi' => $request->pot_izin_pribadi ?? 50000,
+                'pot_tanpa_izin' => $request->pot_tanpa_izin ?? 100000,
+                'pot_sakit' => $request->pot_sakit ?? 10000,
+                'pot_pulang_awal_beralasan' => $request->pot_pulang_awal_beralasan ?? 20000,
+                'pot_pulang_awal_tanpa_beralasan' => $request->pot_pulang_awal_tanpa_beralasan ?? 30000,
+                'pot_terlambat_0806_0900' => $request->pot_terlambat_0806_0900 ?? 20000,
+                'pot_terlambat_0901_1000' => $request->pot_terlambat_0901_1000 ?? 30000,
+                'pot_terlambat_setelah_1000' => $request->pot_terlambat_setelah_1000 ?? 40000,
             ]);
         } else {
-            $data->update(['nominal' => $request->nominal]);
+            $data->update([
+                'nominal' => $request->nominal,
+                'pot_izin_pribadi' => $request->pot_izin_pribadi ?? 50000,
+                'pot_tanpa_izin' => $request->pot_tanpa_izin ?? 100000,
+                'pot_sakit' => $request->pot_sakit ?? 10000,
+                'pot_pulang_awal_beralasan' => $request->pot_pulang_awal_beralasan ?? 20000,
+                'pot_pulang_awal_tanpa_beralasan' => $request->pot_pulang_awal_tanpa_beralasan ?? 30000,
+                'pot_terlambat_0806_0900' => $request->pot_terlambat_0806_0900 ?? 20000,
+                'pot_terlambat_0901_1000' => $request->pot_terlambat_0901_1000 ?? 30000,
+                'pot_terlambat_setelah_1000' => $request->pot_terlambat_setelah_1000 ?? 40000,
+            ]);
         }
         return response()->json($data);
     }
