@@ -1237,4 +1237,115 @@ class PresensiController extends Controller
             
         return true;
     }
+
+    public function getLaporanKehadiranKaryawan(Request $request, $pegawai_id)
+    {
+        Carbon::setLocale('id');
+        $pegawai = MsPegawai::where('id', $pegawai_id)->firstOrFail();
+        $noKtp = $pegawai->no_ktp;
+
+        // Ambil presensi bulan dan tahun dari request atau default bulan ini
+        $bulan = $request->get('bulan', now()->month);
+        $tahun = $request->get('tahun', now()->year);
+
+
+        $presensiList = Presensi::where('no_ktp', $noKtp)
+            ->whereMonth('waktu_masuk', $bulan)
+            ->whereYear('waktu_masuk', $tahun)
+            ->orderBy('waktu_masuk')
+            ->get();
+
+        $data = [];
+
+        foreach ($presensiList as $p) {
+            // Ambil tanggal presensi
+            $tanggalPresensi = $p->waktu_masuk
+                ? Carbon::parse($p->waktu_masuk)->toDateString()
+                : Carbon::parse($p->waktu_pulang)->toDateString();
+
+            // Ambil shift detail pegawai
+            $shiftDetail = ShiftDetail::find($pegawai->shift_detail_id);
+
+            // Tentukan nama hari (lowercase) untuk mapping kolom shift
+            $hari = strtolower(Carbon::parse($tanggalPresensi)->locale('id')->isoFormat('dddd'));
+            // Sesuaikan format kolom (misal: "senin_masuk", "senin_pulang")
+            $kolomMasuk = "{$hari}_masuk";
+            $kolomPulang = "{$hari}_pulang";
+
+            // Jam kerja sesuai shift + tanggal presensi
+            $jamKerjaMasuk = Carbon::parse($tanggalPresensi . ' ' . $shiftDetail->$kolomMasuk);
+            $jamKerjaPulang = Carbon::parse($tanggalPresensi . ' ' . $shiftDetail->$kolomPulang);
+
+            // Jam presensi masuk/pulang
+            $jamMasuk = $p->waktu_masuk ? Carbon::parse($p->waktu_masuk) : null;
+            $jamKeluar = $p->waktu_pulang ? Carbon::parse($p->waktu_pulang) : null;
+
+            // Hitung datang cepat / telat
+            $menitCepat = $menitTelat = 0;
+            if ($jamMasuk) {
+                $diff = $jamKerjaMasuk->diffInMinutes($jamMasuk, false);
+                if ($diff > 0) {
+                    $menitCepat = $diff; // datang cepat
+                } elseif ($diff < 0) {
+                    $menitTelat = abs($diff); // telat
+                }
+            }
+
+            // Hitung pulang cepat / lembur
+            $menitPulangCepat = $menitLembur = 0;
+            if ($jamKeluar) {
+                // Selisih menit: jamKeluar - jamKerjaPulang
+                $diffPulang = $jamKeluar->diffInMinutes($jamKerjaPulang, false);
+
+                if ($diffPulang > 0) {
+                    // Keluar sebelum jam kerja pulang → pulang cepat
+                    $menitPulangCepat = abs($diffPulang);
+                } elseif ($diffPulang < 0) {
+                    // Keluar setelah jam kerja pulang → lembur
+                    $menitLembur = abs($diffPulang);
+                }
+            }
+
+
+            // Hitung total jam kerja
+            $jamKerjaTotal = 0;
+            if ($jamMasuk && $jamKeluar) {
+                $jamKerjaTotal = round($jamMasuk->floatDiffInHours($jamKeluar), 2);
+            }
+
+            $data[] = [
+                'tgl_absensi' => $jamMasuk ? $jamMasuk->translatedFormat('l, j F Y') : null,
+                'jam_kerja' => [
+                    'masuk' => $jamKerjaMasuk->format('H:i'),
+                    'pulang' => $jamKerjaPulang->format('H:i'),
+                ],
+                'jam_masuk' => $jamMasuk ? $jamMasuk->format('H:i') : '-',
+                'jam_keluar' => $jamKeluar ? $jamKeluar->format('H:i') : '-',
+                'jumlah_menit_datang' => [
+                    'menit_datang_cepat' => $menitCepat,
+                    'menit_telat' => $menitTelat,
+                ],
+                'jumlah_menit_pulang' => [
+                    'menit_pulang_cepat' => $menitPulangCepat,
+                    'menit_lembur' => $menitLembur,
+                ],
+                'jam_kerja_total' => $jamKerjaTotal,
+                'alasan' => $p->keterangan_masuk ?: ($p->keterangan_pulang ?: ''),
+            ];
+        }
+
+        return response()->json([
+            'pegawai' => [
+                'no_ktp' => $pegawai->no_ktp,
+                'nama' => $pegawai->nama,
+                'unit_kerja' => $pegawai->unit ? $pegawai->unit->nama : null,
+                'jabatan' => $pegawai->jabatan
+            ],
+            'periode' => [
+                'bulan' => $bulan,
+                'tahun' => $tahun,
+            ],
+            'data' => $data
+        ]);
+    }
 }

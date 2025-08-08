@@ -89,11 +89,13 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::get('presensi/history', [PresensiController::class, 'history']);
     Route::get('presensi/rekap-by-unit', [PresensiController::class, 'rekapPresensiByAdminUnit']);
     Route::get('presensi/history-by-unit', [PresensiController::class, 'historyByAdminUnit']);
-    Route::get('presensi/monthly-recap', [\App\Http\Controllers\PresensiController::class, 'rekapHistoryBulananPegawai']);
-    Route::get('presensi/detail-history-by-unit', [\App\Http\Controllers\PresensiController::class, 'detailHistoryByAdminUnit']);
-    Route::put('presensi/update-by-admin-unit/{pegawai_id}/{tanggal}', [\App\Http\Controllers\PresensiController::class, 'updatePresensiByAdminUnitBulk']);
+    Route::get('presensi/monthly-recap', [PresensiController::class, 'rekapHistoryBulananPegawai']);
+    Route::get('presensi/detail-history-by-unit', [PresensiController::class, 'detailHistoryByAdminUnit']);
+    Route::put('presensi/update-by-admin-unit/{pegawai_id}/{tanggal}', [PresensiController::class, 'updatePresensiByAdminUnitBulk']);
     Route::get('presensi/rekap-bulanan-pegawai', [PresensiController::class, 'rekapBulananByPegawai']);
     Route::get('presensi/rekap-bulanan-semua-pegawai', [PresensiController::class, 'rekapPresensiBulananByAdminUnit']);
+    Route::get('presensi/laporan-kehadiran-karyawan/{pegawai_id}', [PresensiController::class, 'getLaporanKehadiranKaryawan']);
+
 
     // Izin
     Route::get('izin', [\App\Http\Controllers\IzinController::class, 'index']);
