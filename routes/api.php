@@ -95,6 +95,7 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::get('presensi/rekap-bulanan-pegawai', [PresensiController::class, 'rekapBulananByPegawai']);
     Route::get('presensi/rekap-bulanan-semua-pegawai', [PresensiController::class, 'rekapPresensiBulananByAdminUnit']);
     Route::get('presensi/laporan-kehadiran-karyawan/{pegawai_id}', [PresensiController::class, 'getLaporanKehadiranKaryawan']);
+    Route::get('presensi/overtime', [PresensiController::class, 'getOvertimePegawai']);
 
 
     // Izin

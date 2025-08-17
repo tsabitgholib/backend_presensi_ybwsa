@@ -17,7 +17,7 @@ class PegawaiController extends Controller
             ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
             ->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
             ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
-            ->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name');
+            ->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name', 'unit.id as unit_id_presensi');
 
         if ($request->filled('search')) {
             $search = $request->search;

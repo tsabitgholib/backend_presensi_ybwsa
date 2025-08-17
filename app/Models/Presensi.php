@@ -83,7 +83,8 @@ class Presensi extends Model
         'lokasi_masuk',
         'lokasi_pulang',
         'keterangan_masuk',
-        'keterangan_pulang'
+        'keterangan_pulang',
+        'overtime'
     ];
     protected $casts = [
         'lokasi' => 'array',

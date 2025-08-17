@@ -8,6 +8,7 @@ use App\Models\MsPegawai;
 use App\Models\ShiftDetail;
 use Carbon\Carbon;
 use App\Helpers\AdminUnitHelper;
+use Illuminate\Support\Facades\Log;
 
 class DinasController extends Controller
 {
@@ -139,17 +140,23 @@ class DinasController extends Controller
     {
         $hari = strtolower($date->locale('id')->isoFormat('dddd'));
         $masukKey = $hari . '_masuk';
-        
-        if (!$shiftDetail->$masukKey) {
+        //dd($masukKey, $shiftDetail->$masukKey);
+        $jamString = trim($shiftDetail->$masukKey ?? '');
+    
+        if (!$jamString) {
+            return null; // tidak ada data jam
+        }
+    
+        try {
+            // Gunakan H:i karena di DB formatnya "08:00"
+            $jamMasuk = Carbon::createFromFormat('H:i', $jamString);
+            return $date->copy()->setTime($jamMasuk->hour, $jamMasuk->minute, 0);
+        } catch (\Exception $e) {
+            //Log::error("Format jam masuk tidak valid: {$jamString}");
             return null;
         }
-
-        // Parse jam masuk dari shift (format H:i)
-        $jamMasuk = Carbon::createFromFormat('H:i', $shiftDetail->$masukKey);
-        
-        // Kombinasikan dengan tanggal
-        return $date->copy()->setTime($jamMasuk->hour, $jamMasuk->minute, 0);
     }
+    
 
     /**
      * Get waktu pulang berdasarkan shift detail dan tanggal

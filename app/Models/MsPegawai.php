@@ -63,4 +63,9 @@ class MsPegawai extends Model
     {
         return $this->belongsTo(\App\Models\UnitDetail::class, 'unit_detail_id_presensi');
     }
+
+    public function presensi()
+    {
+        return $this->hasMany(Presensi::class, 'no_ktp', 'no_ktp');
+    }
 }
