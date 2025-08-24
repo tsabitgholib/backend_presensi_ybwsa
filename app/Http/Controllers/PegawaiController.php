@@ -12,105 +12,126 @@ class PegawaiController extends Controller
 {
     public function index(Request $request)
     {
-        $query = DB::table('pegawai')
-            ->leftJoin('unit_detail', 'pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
-            ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
-            ->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
-            ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
-            ->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name', 'unit.id as unit_id_presensi');
+        $query = DB::table('ms_orang')
+            //->leftJoin('unit_detail', 'pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
+            ->leftJoin('ms_pegawai', 'ms_orang.id', '=', 'ms_pegawai.id_orang')
+            ->leftJoin('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
+            //->leftJoin('ms_unit', 'ms_orang.presensi_ms_unit_detail_id', '=', 'presensi_ms_unit_detail.ms_unit_id')
+            ->leftJoin('presensi_ms_unit_detail', 'presensi_ms_unit_detail.ms_unit_id', '=', 'ms_unit.id')
+            //->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
+            //->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
+            //->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name', 'unit.id as unit_id_presensi');
+            ->select(
+                'ms_orang.id',
+                'ms_orang.no_ktp',
+                DB::raw("TRIM(
+                    CONCAT_WS(' ', ms_orang.gelar_depan, ms_orang.nama,
+                        CASE WHEN ms_orang.gelar_belakang <> '' THEN CONCAT(', ', ms_orang.gelar_belakang) END
+                    )
+                ) AS nama"),
+                 'ms_orang.tmpt_lahir',
+                 'ms_orang.tgl_lahir',
+                 'ms_orang.jenis_kelamin',
+                 'ms_orang.alamat_ktp',
+                 'ms_orang.no_hp',
+                 'ms_unit.nama as nama_unit',
+                 'presensi_ms_unit_detail.lokasi as lokasi_presensi'
+            );
+
 
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('pegawai.nama', 'like', "%$search%")
-                    ->orWhere('pegawai.no_ktp', 'like', "%$search%")
-                    ->orWhere('unit.name', 'like', "%$search%")
-                    ->orWhere('unit_detail.name', 'like', "%$search%")
-                    ->orWhere('shift.name', 'like', "%$search%");
+                $q->where('ms_orang.nama', 'like', "%$search%")
+                    ->orWhere('ms_orang.no_ktp', 'like', "%$search%")
+                    ->orWhere('ms_unit.nama', 'like', "%$search%")
+                    //->orWhere('unit_detail.name', 'like', "%$search%")
+                    //->orWhere('shift.name', 'like', "%$search%");
+                    ;
             });
         } else {
             if ($request->filled('nama')) {
-                $query->where('pegawai.nama', 'like', '%' . $request->nama . '%');
+                $query->where('ms_orang.nama', 'like', '%' . $request->nama . '%');
             }
             if ($request->filled('nik')) {
-                $query->where('pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+                $query->where('ms_orang.no_ktp', 'like', '%' . $request->nik . '%');
             }
-            if ($request->filled('unit')) {
-                $query->where('unit.name', 'like', '%' . $request->unit . '%');
+            if ($request->filled('ms_unit')) {
+                $query->where('ms_unit.name', 'like', '%' . $request->unit . '%');
             }
-            if ($request->filled('unit_detail')) {
-                $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
-            }
-            if ($request->filled('shift')) {
-                $query->where('shift.name', 'like', '%' . $request->shift . '%');
-            }
+            // if ($request->filled('unit_detail')) {
+            //     $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
+            // }
+            // if ($request->filled('shift')) {
+            //     $query->where('shift.name', 'like', '%' . $request->shift . '%');
+            // }
         }
 
         $pegawaiPaginate = $query->paginate(20);
         return response()->json($pegawaiPaginate);
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'no_ktp' => 'required|unique:pegawai,no_ktp',
-            'nama' => 'required',
-            'email' => 'required|email|unique:pegawai,email',
-            'password' => 'required|min:6',
-            'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
-        ]);
-        try {
-            $pegawai = MsPegawai::create([
-                'no_ktp' => $request->no_ktp,
-                'nama' => $request->nama,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'unit_detail_id_presensi' => $request->unit_detail_id_presensi,
-            ] + $request->except(['no_ktp', 'nama', 'email', 'password', 'unit_detail_id_presensi']));
-            return response()->json($pegawai);
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 400);
-        }
-    }
+    // public function store(Request $request)
+    // {
+    //     $request->validate([
+    //         'no_ktp' => 'required|unique:pegawai,no_ktp',
+    //         'nama' => 'required',
+    //         'email' => 'required|email|unique:pegawai,email',
+    //         'password' => 'required|min:6',
+    //         'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
+    //     ]);
+    //     try {
+    //         $pegawai = MsPegawai::create([
+    //             'no_ktp' => $request->no_ktp,
+    //             'nama' => $request->nama,
+    //             'email' => $request->email,
+    //             'password' => Hash::make($request->password),
+    //             'unit_detail_id_presensi' => $request->unit_detail_id_presensi,
+    //         ] + $request->except(['no_ktp', 'nama', 'email', 'password', 'unit_detail_id_presensi']));
+    //         return response()->json($pegawai);
+    //     } catch (\Exception $e) {
+    //         return response()->json(['message' => $e->getMessage()], 400);
+    //     }
+    // }
 
-    public function update(Request $request, $id)
-    {
-        $pegawai = MsPegawai::find($id);
-        if (!$pegawai) {
-            return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
-        }
-        $request->validate([
-            'no_ktp' => 'sometimes|required|unique:pegawai,no_ktp,' . $id,
-            'nama' => 'sometimes|required',
-            'email' => 'sometimes|required|email|unique:pegawai,email,' . $id,
-            'password' => 'nullable|min:6',
-            'unit_detail_id_presensi' => 'sometimes|required|exists:unit_detail,id',
-        ]);
-        try {
-            $data = $request->only(['no_ktp', 'nama', 'email', 'unit_detail_id_presensi']);
-            if ($request->filled('password')) {
-                $data['password'] = Hash::make($request->password);
-            }
-            $pegawai->update($data + $request->except(['no_ktp', 'nama', 'email', 'password', 'unit_detail_id_presensi']));
-            return response()->json($pegawai);
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 400);
-        }
-    }
+    // public function update(Request $request, $id)
+    // {
+    //     $pegawai = MsPegawai::find($id);
+    //     if (!$pegawai) {
+    //         return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
+    //     }
+    //     $request->validate([
+    //         'no_ktp' => 'sometimes|required|unique:pegawai,no_ktp,' . $id,
+    //         'nama' => 'sometimes|required',
+    //         'email' => 'sometimes|required|email|unique:pegawai,email,' . $id,
+    //         'password' => 'nullable|min:6',
+    //         'unit_detail_id_presensi' => 'sometimes|required|exists:unit_detail,id',
+    //     ]);
+    //     try {
+    //         $data = $request->only(['no_ktp', 'nama', 'email', 'unit_detail_id_presensi']);
+    //         if ($request->filled('password')) {
+    //             $data['password'] = Hash::make($request->password);
+    //         }
+    //         $pegawai->update($data + $request->except(['no_ktp', 'nama', 'email', 'password', 'unit_detail_id_presensi']));
+    //         return response()->json($pegawai);
+    //     } catch (\Exception $e) {
+    //         return response()->json(['message' => $e->getMessage()], 400);
+    //     }
+    // }
 
-    public function destroy($id)
-    {
-        $pegawai = MsPegawai::find($id);
-        if (!$pegawai) {
-            return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
-        }
-        try {
-            $pegawai->delete();
-            return response()->json(['message' => 'Pegawai deleted']);
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 400);
-        }
-    }
+    // public function destroy($id)
+    // {
+    //     $pegawai = MsPegawai::find($id);
+    //     if (!$pegawai) {
+    //         return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
+    //     }
+    //     try {
+    //         $pegawai->delete();
+    //         return response()->json(['message' => 'Pegawai deleted']);
+    //     } catch (\Exception $e) {
+    //         return response()->json(['message' => $e->getMessage()], 400);
+    //     }
+    // }
 
     public function getByUnitIdPresensi(Request $request)
     {
@@ -126,63 +147,72 @@ class PegawaiController extends Controller
         }
         $unitId = $unitResult['unit_id'];
 
-        $query = DB::table('pegawai')
-            ->leftJoin('unit_detail', 'pegawai.unit_detail_id_presensi', '=', 'unit_detail.id')
-            ->leftJoin('unit', 'unit_detail.unit_id', '=', 'unit.id')
-            ->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
-            ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
-            ->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name')
-            ->where('unit_detail.unit_id', $unitId);
+        $unitIds = DB::select("
+            WITH RECURSIVE unit_tree AS (
+                SELECT id, id_parent
+                FROM ms_unit
+                WHERE id = ?
+                UNION ALL
+                SELECT u.id, u.id_parent
+                FROM ms_unit u
+                INNER JOIN unit_tree ut ON u.id_parent = ut.id
+            )
+            SELECT id FROM unit_tree
+        ", [$unitId]);
+
+        // Convert ke array
+        $unitIds = collect($unitIds)->pluck('id')->toArray();
+
+        $query = DB::table('ms_orang')
+            ->leftJoin('ms_pegawai', 'ms_orang.id', '=', 'ms_pegawai.id_orang')
+            ->leftJoin('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
+            ->leftJoin('presensi_ms_unit_detail', 'presensi_ms_unit_detail.ms_unit_id', '=', 'ms_unit.id')
+            //->leftJoin('shift_detail', 'ms_pegawai.shift_detail_id', '=', 'shift_detail.id')
+            //->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
+            ->select(
+                'ms_orang.id',
+                'ms_orang.no_ktp',
+                DB::raw("TRIM(
+                    CONCAT_WS(' ', ms_orang.gelar_depan, ms_orang.nama,
+                        CASE WHEN ms_orang.gelar_belakang <> '' THEN CONCAT(', ', ms_orang.gelar_belakang) END
+                    )
+                ) AS nama"),
+                'ms_orang.tmpt_lahir',
+                'ms_orang.tgl_lahir',
+                'ms_orang.jenis_kelamin',
+                'ms_orang.alamat_ktp',
+                'ms_orang.no_hp',
+                'ms_unit.nama as nama_unit',
+                'presensi_ms_unit_detail.lokasi as lokasi_presensi'
+            )
+            ->whereIn('ms_pegawai.id_unit', $unitIds);
 
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('pegawai.nama', 'like', "%$search%")
-                    ->orWhere('pegawai.no_ktp', 'like', "%$search%")
-                    ->orWhere('unit.name', 'like', "%$search%")
-                    ->orWhere('unit_detail.name', 'like', "%$search%")
-                    ->orWhere('shift.name', 'like', "%$search%");
+                $q->where('ms_orang.nama', 'like', "%$search%")
+                    ->orWhere('ms_orang.no_ktp', 'like', "%$search%")
+                    ->orWhere('ms_unit.nama', 'like', "%$search%");
+                    //->orWhere('shift.name', 'like', "%$search%");
             });
         } else {
             if ($request->filled('nama')) {
-                $query->where('pegawai.nama', 'like', '%' . $request->nama . '%');
+                $query->where('ms_orang.nama', 'like', '%' . $request->nama . '%');
             }
             if ($request->filled('nik')) {
-                $query->where('pegawai.no_ktp', 'like', '%' . $request->nik . '%');
+                $query->where('ms_orang.no_ktp', 'like', '%' . $request->nik . '%');
             }
-            if ($request->filled('unit')) {
-                $query->where('unit.name', 'like', '%' . $request->unit . '%');
+            if ($request->filled('ms_unit')) {
+                $query->where('ms_unit.nama', 'like', '%' . $request->unit . '%');
             }
-            if ($request->filled('unit_detail')) {
-                $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
-            }
-            if ($request->filled('shift')) {
-                $query->where('shift.name', 'like', '%' . $request->shift . '%');
-            }
+            // if ($request->filled('shift')) {
+            //     $query->where('shift.name', 'like', '%' . $request->shift . '%');
+            // }
         }
 
         $pegawais = $query->paginate(20);
         return response()->json($pegawais);
     }
-
-    /**
-     * Tambahkan pegawai ke unit detail presensi tertentu.
-     * Request: { unit_detail_id_presensi: int, pegawai_ids: array of int }
-     */
-    // public function assignToUnitPresensi(Request $request)
-    // {
-    //     $request->validate([
-    //         'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
-    //         'pegawai_ids' => 'required|array',
-    //         'pegawai_ids.*' => 'exists:pegawai,id',
-    //     ]);
-    //     $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
-    //         ->update(['unit_detail_id_presensi' => $request->unit_detail_id_presensi]);
-    //     return response()->json([
-    //         'message' => 'Berhasil menambahkan pegawai ke unit detail presensi',
-    //         'jumlah_pegawai_diupdate' => $count
-    //     ]);
-    // }
 
     /**
      * Get lokasi presensi yang valid untuk pegawai

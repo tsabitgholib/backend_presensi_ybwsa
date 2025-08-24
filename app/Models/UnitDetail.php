@@ -9,25 +9,25 @@ class UnitDetail extends Model
 {
     use HasFactory;
 
-    protected $table = 'unit_detail';
-    protected $fillable = ['unit_id', 'name', 'lokasi'];
+    protected $table = 'presensi_ms_unit_detail';
+    protected $fillable = ['ms_unit_id', 'lokasi'];
     protected $casts = [
         'lokasi' => 'array',
     ];
 
     public function unit()
     {
-        return $this->belongsTo(Unit::class);
+        return $this->belongsTo(Unit::class, 'ms_unit_id', 'id');
     }
 
     public function pegawais()
     {
-        return $this->hasMany(MsPegawai::class, 'unit_detail_id_presensi');
+        return $this->hasMany(MsPegawai::class, 'presensi_ms_unit_detail_id');
     }
 
     public function pegawaisPresensi()
     {
-        return $this->hasMany(MsPegawai::class, 'unit_detail_id_presensi');
+        return $this->hasMany(MsPegawai::class, 'presensi_ms_unit_detail_id');
     }
 
     public function hariLibur()

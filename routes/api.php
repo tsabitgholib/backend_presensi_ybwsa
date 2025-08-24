@@ -47,24 +47,20 @@ Route::middleware(['auth.jwt'])->group(function () {
 
     // Unit
     Route::get('unit', [UnitController::class, 'index']);
-    Route::post('unit/create', [UnitController::class, 'store']);
-    Route::put('unit/update/{id}', [UnitController::class, 'update']);
-    Route::delete('unit/delete/{id}', [UnitController::class, 'destroy']);
+    Route::get('unit/with-location', [UnitController::class, 'getUnitsWithLocation']);
 
     // Unit Detail
-    Route::get('unit-detail', [UnitDetailController::class, 'getAll']);
-    Route::get('unit-detail/{unit_id}', [UnitDetailController::class, 'index']);
-    Route::post('unit-detail/create', [UnitDetailController::class, 'store']);
-    Route::put('unit-detail/update/{id}', [UnitDetailController::class, 'update']);
-    Route::delete('unit-detail/delete/{id}', [UnitDetailController::class, 'destroy']);
-    Route::get('unit-detail/get-by-id/{id}', [UnitDetailController::class, 'show']);
-    Route::post('unit-detail/add-pegawai-to-unit-detail', [\App\Http\Controllers\UnitDetailController::class, 'assignPegawai']);
+    //Route::get('unit-detail', [UnitDetailController::class, 'getAll']);
+    Route::get('unit-detail/get-by-unit-id/{unit_id}', [UnitDetailController::class, 'index']);
+    //Route::get('unit-detail/get-by-id/{id}', [UnitDetailController::class, 'show']);
+    Route::put('unit-detail/update-location/{unit_id}', [UnitDetailController::class, 'updateLocation']);
+    Route::post('unit-detail/add-pegawai-to-unit-detail', [UnitDetailController::class, 'assignPegawai']);
 
     // Pegawai
     Route::get('pegawai', [PegawaiController::class, 'index']);
-    Route::post('pegawai/create', [PegawaiController::class, 'store']);
-    Route::put('pegawai/update/{id}', [PegawaiController::class, 'update']);
-    Route::delete('pegawai/delete/{id}', [PegawaiController::class, 'destroy']);
+    //Route::post('pegawai/create', [PegawaiController::class, 'store']);
+    //Route::put('pegawai/update/{id}', [PegawaiController::class, 'update']);
+    //Route::delete('pegawai/delete/{id}', [PegawaiController::class, 'destroy']);
     Route::get('pegawai/by-unit-id-presensi', [PegawaiController::class, 'getByUnitIdPresensi']);
     Route::get('pegawai/lokasi-presensi', [PegawaiController::class, 'getLokasiPresensi']);
     Route::get('pegawai/cek-hari-libur', [PegawaiController::class, 'cekHariLibur']);

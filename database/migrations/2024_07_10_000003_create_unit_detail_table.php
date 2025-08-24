@@ -6,21 +6,29 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
-        Schema::create('unit_detail', function (Blueprint $table) {
+        Schema::create('presensi_ms_unit_detail', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('unit_id');
-            $table->string('name');
-            $table->json('lokasi');
+            $table->unsignedInteger('ms_unit_id');
+            $table->json('lokasi')->nullable();
             $table->timestamps();
 
-            $table->foreign('unit_id')->references('id')->on('unit')->onDelete('cascade');
+            $table->foreign('ms_unit_id')
+                  ->references('id')
+                  ->on('ms_unit')
+                  ->onDelete('cascade'); 
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
-        Schema::dropIfExists('unit_detail');
+        Schema::dropIfExists('presensi_ms_unit_detail');
     }
-}; 
+};

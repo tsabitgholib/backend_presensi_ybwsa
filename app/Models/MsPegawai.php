@@ -3,69 +3,52 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class MsPegawai extends Model
 {
-    protected $table = 'pegawai';
+    use HasFactory;
+
+    // Nama tabel
+    protected $table = 'ms_pegawai';
+
+    // Primary Key
+    protected $primaryKey = 'id';
+
+    // Apakah PK auto increment
+    public $incrementing = true;
+
+    protected $keyType = 'int';
+
+
     protected $fillable = [
-        'id_old_pegawai',
-        'id_unit',
-        'id_unit_kerja',
-        'unit_id',
-        'id_upk',
-        'id_homebase',
-        'id_tipe',
+        'id_orang',
         'id_user',
-        'id_sync',
-        'no_ktp',
-        'nama',
-        'gelar_depan',
-        'gelar_belakang',
-        'tmpt_lahir',
-        'tgl_lahir',
-        'jenis_kelamin',
-        'tinggi',
-        'berat',
-        'gol_darah',
-        'provinsi',
-        'kabupaten',
-        'kecamatan',
-        'kelurahan',
-        'alamat',
-        'kode_pos',
-        'no_hp',
-        'no_telepon',
-        'no_whatsapp',
-        'email',
-        'jabatan',
-        'password',
-        'shift_detail_id',
-        'unit_detail_id_presensi',
-        'last_sync'
+        'id_unit',
+        'status',
+        'presensi_shift_detail_id',
+        'presensi_ms_unit_detail_id'
     ];
 
     public function shiftDetail()
+{
+    return $this->belongsTo(\App\Models\ShiftDetail::class, 'presensi_shift_detail_id', 'id');
+}
+
+
+    public function orang()
     {
-        return $this->belongsTo(\App\Models\ShiftDetail::class);
+        return $this->belongsTo(MsPegawai::class, 'id_orang', 'id');
     }
 
     public function unit()
     {
-        return $this->belongsTo(\App\Models\Unit::class);
-    }
+        return $this->belongsTo(Unit::class, 'id_unit', 'id');
 
-    public function unitDetail()
-    {
-        return $this->belongsTo(\App\Models\UnitDetail::class);
     }
-
     public function unitDetailPresensi()
     {
-        return $this->belongsTo(\App\Models\UnitDetail::class, 'unit_detail_id_presensi');
+        return $this->belongsTo(\App\Models\UnitDetail::class, 'presensi_ms_unit_detail_id', 'id');
     }
 
-    public function presensi()
-    {
-        return $this->hasMany(Presensi::class, 'no_ktp', 'no_ktp');
-    }
 }

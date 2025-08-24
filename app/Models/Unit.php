@@ -12,8 +12,52 @@ class Unit extends Model
 {
     use HasFactory;
 
-    protected $table = 'unit';
-    protected $fillable = ['name'];
+protected $table = 'ms_unit'; // nama tabel di DB
+
+    protected $fillable = [
+        'id_sync',
+        'kode_surat',
+        'id_parent',
+        'id_jabatan_pimpinan',
+        'nama',
+        'alias',
+        'level',
+        'lvl_surat',
+        'lvl',
+        'presensi_ms_unit_detail_id'
+    ];
+
+    /**
+     * Relasi ke parent unit
+     */
+    public function parent()
+    {
+        return $this->belongsTo(Unit::class, 'id_parent');
+    }
+
+    /**
+     * Relasi ke children unit
+     */
+    public function children()
+    {
+        return $this->hasMany(Unit::class, 'id_parent');
+    }
+
+    /**
+     * Ambil semua children secara rekursif
+     */
+    public function childrenRecursive()
+    {
+        return $this->children()->with('childrenRecursive');
+    }
+
+    /**
+     * Scope untuk ambil hanya root unit (tanpa parent)
+     */
+    public function scopeRoot($query)
+    {
+        return $query->whereNull('id_parent');
+    }
 
     public function admins()
     {
