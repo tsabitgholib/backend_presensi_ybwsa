@@ -441,7 +441,7 @@ class PresensiController extends Controller
         }
         $unitId = $unitResult['unit_id'];
 
-        $tanggal = $request->query('tanggal');
+        $tanggal = $request->query('tanggal', Carbon::today()->toDateString());
         $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
             $q->where('unit_id', $unitId);
         })->get(['id', 'no_ktp', 'nama']);
@@ -1002,7 +1002,7 @@ class PresensiController extends Controller
                 // Menggunakan format baru - 1 row per hari
                 $presensiHari = $presensi->where(fn($p) => $p->waktu_masuk->format('Y-m-d') === $tanggal);
                 if ($presensiHari->count()) {
-                    if ($presensiHari->where('status_presensi', 'hadir')->count()) {
+                    if ($presensiHari->whereIn('status_presensi', ['hadir', 'dinas'])->count()) {
                         $status = 'hadir';
                     } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
                         $status = 'tidak_hadir';
@@ -1212,15 +1212,15 @@ class PresensiController extends Controller
                 // Menggunakan format baru - 1 row per hari
                 $presensiHari = $presensi->where(fn($p) => $p->waktu_masuk->format('Y-m-d') === $tanggal);
                 if ($presensiHari->count()) {
-                    if ($presensiHari->where('status_presensi', 'hadir')->count()) {
+                    if ($presensiHari->where('status_presensi', 'dinas')->count()) {
+                        $status = 'dinas';
+                    } elseif ($presensiHari->where('status_presensi', 'hadir')->count()) {
                         $status = 'hadir';
                     } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
                         $status = 'tidak_hadir';
-                    } else {
-                        $status = 'lain';
                     }
                 }
-                if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                if (!$status || $status === 'tidak_hadir') {
                     foreach ($izin as $i) {
                         if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
                             $status = 'izin';
@@ -1228,7 +1228,7 @@ class PresensiController extends Controller
                         }
                     }
                 }
-                if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                if (!$status || $status === 'tidak_hadir') {
                     foreach ($cuti as $c) {
                         if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
                             $status = 'cuti';
@@ -1236,7 +1236,7 @@ class PresensiController extends Controller
                         }
                     }
                 }
-                if (!$status || $status === 'tidak_hadir' || $status === 'lain') {
+                if (!$status || $status === 'tidak_hadir') {
                     foreach ($sakit as $s) {
                         if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
                             $status = 'sakit';
@@ -1250,11 +1250,13 @@ class PresensiController extends Controller
                 $rekap[$tanggal] = $status;
             }
             // Hitung jumlah presensi
-            $jumlahHadir = collect($rekap)->where('hadir')->count();
-            $jumlahIzin = collect($rekap)->where('izin')->count();
-            $jumlahSakit = collect($rekap)->where('sakit')->count();
-            $jumlahCuti = collect($rekap)->where('cuti')->count();
-            $jumlahTidakHadir = collect($rekap)->where('tidak_hadir')->count();
+            $counts = collect($rekap)->countBy();
+            $jumlahHadir = $counts->get('hadir', 0);
+            $jumlahIzin = $counts->get('izin', 0);
+            $jumlahSakit = $counts->get('sakit', 0);
+            $jumlahCuti = $counts->get('cuti', 0);
+            $jumlahTidakHadir = $counts->get('tidak_hadir', 0);
+            $jumlahDinas = $counts->get('dinas', 0);
             // Hitung presensi detail (format baru)
             $jumlahTerlambat = $presensi->where('status_masuk', 'terlambat')->count();
             $jumlahPulangAwal = $presensi->where('status_pulang', 'pulang_awal')->count();
@@ -1282,14 +1284,14 @@ class PresensiController extends Controller
                 'jumlah_sakit' => $jumlahSakit,
                 'jumlah_cuti' => $jumlahCuti,
                 'jumlah_tidak_masuk' => $jumlahTidakHadir,
-                'jumlah_dinas' => 0,
+                'jumlah_dinas' => $jumlahDinas,
                 'jumlah_terlambat' => $jumlahTerlambat,
                 'jumlah_pulang_awal' => $jumlahPulangAwal,
                 'jumlah_jam_datang_kosong' => $jumlahJamDatangKosong,
                 'jumlah_jam_pulang_kosong' => $jumlahJamPulangKosong,
                 'lembur' => 0,
                 'jumlah_libur' => $jumlahLibur,
-                'nominal_lauk_pauk' => $nominalLaukPauk // Response tetap sama, tidak berubah
+                'nominal_lauk_pauk' => $nominalLaukPaukSetelahPotongan // Response tetap sama, tidak berubah
             ];
         }
         return response()->json($result);
@@ -1407,8 +1409,17 @@ class PresensiController extends Controller
             $kolomPulang = "{$hari}_pulang";
 
             // Jam kerja sesuai shift + tanggal presensi
-            $jamKerjaMasuk = Carbon::parse($tanggalPresensi . ' ' . $shiftDetail->$kolomMasuk);
-            $jamKerjaPulang = Carbon::parse($tanggalPresensi . ' ' . $shiftDetail->$kolomPulang);
+            $shiftMasuk = $shiftDetail->$kolomMasuk;
+            $shiftPulang = $shiftDetail->$kolomPulang;
+
+            // Kalau libur atau null → skip hari ini
+            if (!$shiftMasuk || !$shiftPulang || strtolower($shiftMasuk) === 'libur' || strtolower($shiftPulang) === 'libur') {
+                continue; // lompat ke iterasi berikutnya
+            }
+
+            $jamKerjaMasuk = Carbon::parse($tanggalPresensi . ' ' . $shiftMasuk);
+            $jamKerjaPulang = Carbon::parse($tanggalPresensi . ' ' . $shiftPulang);
+
 
             // Jam presensi masuk/pulang
             $jamMasuk = $p->waktu_masuk ? Carbon::parse($p->waktu_masuk) : null;

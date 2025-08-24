@@ -150,37 +150,109 @@ class DashboardController extends Controller
     /**
      * Get attendance summary
      */
+    // private function getAttendanceSummary($noKtps, $startDate, $endDate)
+    // {
+    //     //$presensi = Presensi::whereIn('no_ktp', $noKtps)
+    //     //    ->whereBetween('waktu_masuk', [$startDate->toDateString() . ' 00:00:00', $endDate->toDateString() . ' 23:59:59'])
+    //     //    ->get();
+
+    //     $totalDays = $startDate->diffInDays($endDate) + 1;
+    //     $totalExpected = count($noKtps) * $totalDays;
+
+    //     // $hadir = $presensi->whereIn('status_presensi', ['hadir', 'dinas'])->count();
+    //     // $terlambat = $presensi->where('status_masuk', 'terlambat')->count();
+    //     // $tidakHadir = $presensi->where('status_presensi', 'tidak_hadir')->count();
+    //     // $izin = $presensi->where('status_presensi', 'izin')->count();
+    //     // $sakit = $presensi->where('status_presensi', 'sakit')->count();
+    //     // $cuti = $presensi->where('status_presensi', 'cuti')->count();
+    //     // $dinas = $presensi->where('status_presensi', 'dinas')->count();
+
+    //     $summary = Presensi::selectRaw("
+    //         SUM(CASE WHEN status_presensi IN ('hadir','dinas') THEN 1 ELSE 0 END) as hadir,
+    //         SUM(CASE WHEN status_masuk = 'terlambat' THEN 1 ELSE 0 END) as terlambat,
+    //         SUM(CASE WHEN status_presensi = 'tidak_hadir' THEN 1 ELSE 0 END) as tidak_hadir,
+    //         SUM(CASE WHEN status_presensi = 'izin' THEN 1 ELSE 0 END) as izin,
+    //         SUM(CASE WHEN status_presensi = 'sakit' THEN 1 ELSE 0 END) as sakit,
+    //         SUM(CASE WHEN status_presensi = 'cuti' THEN 1 ELSE 0 END) as cuti,
+    //         SUM(CASE WHEN status_presensi = 'dinas' THEN 1 ELSE 0 END) as dinas,
+    //         COUNT(*) as total
+    //     ")
+    //     ->whereIn('no_ktp', $noKtps)
+    //     ->whereBetween('waktu_masuk', [$startDate, $endDate])
+    //     ->first();
+
+    //     $totalDays     = $startDate->diffInDays($endDate) + 1;
+    //     $totalExpected = count($noKtps) * $totalDays;
+
+    //     $attendanceRate = $totalExpected > 0 
+    //         ? round(($summary->hadir / $totalExpected) * 100, 2) 
+    //         : 0;
+
+    //     return [
+    //         'total_expected' => $totalExpected,
+    //         'hadir'          => (int) $summary->hadir,
+    //         'terlambat'      => (int) $summary->terlambat,
+    //         'tidak_hadir'    => (int) $summary->tidak_hadir,
+    //         'izin'           => (int) $summary->izin,
+    //         'sakit'          => (int) $summary->sakit,
+    //         'cuti'           => (int) $summary->cuti,
+    //         'dinas'          => (int) $summary->dinas,
+    //         'attendance_rate'=> $attendanceRate,
+    //     ];
+
+
+    //     // $attendanceRate = $totalExpected > 0 ? round(($hadir / $totalExpected) * 100, 2) : 0;
+
+    //     // return [
+    //     //     'total_expected' => $totalExpected,
+    //     //     'hadir' => $hadir,
+    //     //     'terlambat' => $terlambat,
+    //     //     'tidak_hadir' => $tidakHadir,
+    //     //     'izin' => $izin,
+    //     //     'sakit' => $sakit,
+    //     //     'cuti' => $cuti,
+    //     //     'dinas' => $dinas,
+    //     //     'attendance_rate' => $attendanceRate,
+    //     // ];
+    // }
+
     private function getAttendanceSummary($noKtps, $startDate, $endDate)
-    {
-        $presensi = Presensi::whereIn('no_ktp', $noKtps)
-            ->whereBetween('waktu_masuk', [$startDate->toDateString() . ' 00:00:00', $endDate->toDateString() . ' 23:59:59'])
-            ->get();
+{
+    $presensi = Presensi::whereIn('no_ktp', $noKtps)
+        ->whereBetween('waktu_masuk', [
+            $startDate->toDateString() . ' 00:00:00',
+            $endDate->toDateString() . ' 23:59:59'
+        ])
+        ->get();
 
-        $totalDays = $startDate->diffInDays($endDate) + 1;
-        $totalExpected = count($noKtps) * $totalDays;
+    $totalDays     = $startDate->diffInDays($endDate) + 1;
+    $totalExpected = count($noKtps) * $totalDays;
 
-        $hadir = $presensi->whereIn('status_presensi', ['hadir', 'dinas'])->count();
-        $terlambat = $presensi->where('status_masuk', 'terlambat')->count();
-        $tidakHadir = $presensi->where('status_presensi', 'tidak_hadir')->count();
-        $izin = $presensi->where('status_presensi', 'izin')->count();
-        $sakit = $presensi->where('status_presensi', 'sakit')->count();
-        $cuti = $presensi->where('status_presensi', 'cuti')->count();
-        $dinas = $presensi->where('status_presensi', 'dinas')->count();
+    $hadir        = $presensi->whereIn('status_presensi', ['hadir', 'dinas'])->count();
+    $terlambat    = $presensi->where('status_masuk', 'terlambat')->count();
+    $tidakHadir   = $presensi->where('status_presensi', 'tidak_hadir')->count();
+    $izin         = $presensi->where('status_presensi', 'izin')->count();
+    $sakit        = $presensi->where('status_presensi', 'sakit')->count();
+    $cuti         = $presensi->where('status_presensi', 'cuti')->count();
+    $dinas        = $presensi->where('status_presensi', 'dinas')->count();
 
-        $attendanceRate = $totalExpected > 0 ? round(($hadir / $totalExpected) * 100, 2) : 0;
+    $attendanceRate = $totalExpected > 0
+        ? round(($hadir / $totalExpected) * 100, 2)
+        : 0;
 
-        return [
-            'total_expected' => $totalExpected,
-            'hadir' => $hadir,
-            'terlambat' => $terlambat,
-            'tidak_hadir' => $tidakHadir,
-            'izin' => $izin,
-            'sakit' => $sakit,
-            'cuti' => $cuti,
-            'dinas' => $dinas,
-            'attendance_rate' => $attendanceRate,
-        ];
-    }
+    return [
+        'total_expected'  => $totalExpected,
+        'hadir'           => $hadir,
+        'terlambat'       => $terlambat,
+        'tidak_hadir'     => $tidakHadir,
+        'izin'            => $izin,
+        'sakit'           => $sakit,
+        'cuti'            => $cuti,
+        'dinas'           => $dinas,
+        'attendance_rate' => $attendanceRate,
+    ];
+}
+
 
     /**
      * Get daily attendance data for chart
@@ -221,6 +293,52 @@ class DashboardController extends Controller
 
         return $data;
     }
+
+//     private function getDailyAttendanceData($noKtps, $startDate, $endDate)
+//     {
+//     $rows = Presensi::selectRaw("
+//             DATE(waktu_masuk) as tanggal,
+//             SUM(CASE WHEN status_presensi IN ('hadir','dinas') THEN 1 ELSE 0 END) as hadir,
+//             SUM(CASE WHEN status_masuk = 'terlambat' THEN 1 ELSE 0 END) as terlambat,
+//             SUM(CASE WHEN status_presensi = 'tidak_hadir' THEN 1 ELSE 0 END) as tidak_hadir,
+//             SUM(CASE WHEN status_presensi = 'izin' THEN 1 ELSE 0 END) as izin,
+//             SUM(CASE WHEN status_presensi = 'sakit' THEN 1 ELSE 0 END) as sakit,
+//             SUM(CASE WHEN status_presensi = 'cuti' THEN 1 ELSE 0 END) as cuti,
+//             COUNT(*) as total
+//         ")
+//         ->whereIn('no_ktp', $noKtps)
+//         ->whereBetween('waktu_masuk', [$startDate, $endDate])
+//         ->groupBy(DB::raw('DATE(waktu_masuk)'))
+//         ->orderBy('tanggal')
+//         ->get()
+//         ->keyBy('tanggal');
+
+
+//     $data = [];
+//     $currentDate = $startDate->copy();
+//     while ($currentDate->lte($endDate)) {
+//         $date = $currentDate->format('Y-m-d');
+//         $row = $rows->get($date);
+
+//         $data[] = [
+//             'tanggal'     => $date,
+//             'hari'        => $currentDate->locale('id')->isoFormat('dddd'),
+//             'hadir'       => $row ? (int)$row->hadir : 0,
+//             'terlambat'   => $row ? (int)$row->terlambat : 0,
+//             'tidak_hadir' => $row ? (int)$row->tidak_hadir : 0,
+//             'izin'        => $row ? (int)$row->izin : 0,
+//             'sakit'       => $row ? (int)$row->sakit : 0,
+//             'cuti'        => $row ? (int)$row->cuti : 0,
+//             'total'       => $row ? (int)$row->total : 0,
+//         ];
+
+//         $currentDate->addDay();
+//     }
+
+//     return $data;
+// }
+
+
 
     /**
      * Get status distribution for pie chart
@@ -308,6 +426,42 @@ class DashboardController extends Controller
 
         return array_slice($employeeStats, 0, 10); // Top 10
     }
+
+//     private function getTopEmployees($noKtps, $startDate, $endDate)
+// {
+//     $stats = Presensi::selectRaw("
+//             no_ktp,
+//             SUM(CASE WHEN status_presensi IN ('hadir','dinas') THEN 1 ELSE 0 END) as hadir,
+//             SUM(CASE WHEN status_masuk = 'terlambat' THEN 1 ELSE 0 END) as terlambat,
+//             COUNT(*) as total
+//         ")
+//         ->whereIn('no_ktp', $noKtps)
+//         ->whereBetween('waktu_masuk', [
+//             $startDate->toDateString() . ' 00:00:00',
+//             $endDate->toDateString() . ' 23:59:59'
+//         ])
+//         ->groupBy('no_ktp')
+//         ->orderByDesc(DB::raw('hadir / total'))
+//         ->limit(10)
+//         ->get();
+
+//     // Ambil data pegawai
+//     $pegawaiMap = MsPegawai::whereIn('no_ktp', $stats->pluck('no_ktp'))
+//         ->pluck('nama', 'no_ktp');
+
+//     // Gabung data presensi dengan nama pegawai + attendance rate
+//     return $stats->map(function ($row) use ($pegawaiMap) {
+//         return [
+//             'no_ktp'          => $row->no_ktp,
+//             'nama'            => $pegawaiMap[$row->no_ktp] ?? null,
+//             'hadir'           => (int) $row->hadir,
+//             'terlambat'       => (int) $row->terlambat,
+//             'total'           => (int) $row->total,
+//             'attendance_rate' => round(($row->hadir / $row->total) * 100, 2),
+//         ];
+//     })->values();
+// }
+
 
     /**
      * Get recent activities
@@ -410,6 +564,61 @@ class DashboardController extends Controller
 
         return $trend;
     }
+
+//     private function getMonthlyTrend($noKtps, $currentYear, $currentMonth)
+// {
+//     $raw = Presensi::selectRaw("
+//             DATE_FORMAT(waktu_masuk, '%Y-%m') as bulan,
+//             SUM(CASE WHEN status_presensi IN ('hadir','dinas') THEN 1 ELSE 0 END) as hadir,
+//             SUM(CASE WHEN status_presensi = 'tidak_hadir' THEN 1 ELSE 0 END) as tidak_hadir,
+//             SUM(CASE WHEN status_presensi = 'izin' THEN 1 ELSE 0 END) as izin,
+//             SUM(CASE WHEN status_presensi = 'sakit' THEN 1 ELSE 0 END) as sakit,
+//             SUM(CASE WHEN status_presensi = 'cuti' THEN 1 ELSE 0 END) as cuti,
+//             SUM(CASE WHEN status_presensi = 'dinas' THEN 1 ELSE 0 END) as dinas,
+//             COUNT(*) as total
+//         ")
+//         ->whereIn('no_ktp', $noKtps)
+//         ->whereYear('waktu_masuk', $currentYear)
+//         ->groupBy('bulan')
+//         ->orderBy('bulan')
+//         ->get()
+//         ->keyBy('bulan');
+
+//     $trend = [];
+
+//     // Loop dari Januari sampai bulan sekarang supaya bulan kosong tetap muncul
+//     for ($month = 1; $month <= $currentMonth; $month++) {
+//         $date = Carbon::create($currentYear, $month, 1);
+//         $key  = $date->format('Y-m');
+
+//         $row = $raw->get($key);
+
+//         $hadir      = $row->hadir ?? 0;
+//         $tidakHadir = $row->tidak_hadir ?? 0;
+//         $izin       = $row->izin ?? 0;
+//         $sakit      = $row->sakit ?? 0;
+//         $cuti       = $row->cuti ?? 0;
+//         $dinas      = $row->dinas ?? 0;
+//         $total      = $row->total ?? 0;
+//         $attendanceRate = $total > 0 ? round(($hadir / $total) * 100, 2) : 0;
+
+//         $trend[] = [
+//             'bulan'           => $key,
+//             'nama_bulan'      => $date->locale('id')->isoFormat('MMM YYYY'),
+//             'hadir'           => (int) $hadir,
+//             'tidak_hadir'     => (int) $tidakHadir,
+//             'izin'            => (int) $izin,
+//             'sakit'           => (int) $sakit,
+//             'cuti'            => (int) $cuti,
+//             'dinas'           => (int) $dinas,
+//             'total'           => (int) $total,
+//             'attendance_rate' => $attendanceRate,
+//         ];
+//     }
+
+//     return $trend;
+// }
+
 
 
     /**

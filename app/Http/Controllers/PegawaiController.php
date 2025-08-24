@@ -169,20 +169,20 @@ class PegawaiController extends Controller
      * Tambahkan pegawai ke unit detail presensi tertentu.
      * Request: { unit_detail_id_presensi: int, pegawai_ids: array of int }
      */
-    public function assignToUnitPresensi(Request $request)
-    {
-        $request->validate([
-            'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
-            'pegawai_ids' => 'required|array',
-            'pegawai_ids.*' => 'exists:pegawai,id',
-        ]);
-        $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
-            ->update(['unit_detail_id_presensi' => $request->unit_detail_id_presensi]);
-        return response()->json([
-            'message' => 'Berhasil menambahkan pegawai ke unit detail presensi',
-            'jumlah_pegawai_diupdate' => $count
-        ]);
-    }
+    // public function assignToUnitPresensi(Request $request)
+    // {
+    //     $request->validate([
+    //         'unit_detail_id_presensi' => 'required|exists:unit_detail,id',
+    //         'pegawai_ids' => 'required|array',
+    //         'pegawai_ids.*' => 'exists:pegawai,id',
+    //     ]);
+    //     $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
+    //         ->update(['unit_detail_id_presensi' => $request->unit_detail_id_presensi]);
+    //     return response()->json([
+    //         'message' => 'Berhasil menambahkan pegawai ke unit detail presensi',
+    //         'jumlah_pegawai_diupdate' => $count
+    //     ]);
+    // }
 
     /**
      * Get lokasi presensi yang valid untuk pegawai
