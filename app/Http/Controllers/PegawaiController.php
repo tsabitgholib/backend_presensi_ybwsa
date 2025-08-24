@@ -18,9 +18,8 @@ class PegawaiController extends Controller
             ->leftJoin('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
             //->leftJoin('ms_unit', 'ms_orang.presensi_ms_unit_detail_id', '=', 'presensi_ms_unit_detail.ms_unit_id')
             ->leftJoin('presensi_ms_unit_detail', 'presensi_ms_unit_detail.ms_unit_id', '=', 'ms_unit.id')
-            //->leftJoin('shift_detail', 'pegawai.shift_detail_id', '=', 'shift_detail.id')
-            //->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
-            //->select('pegawai.*', 'unit_detail.name as unit_detail_name', 'unit.name as unit_name', 'shift.name as shift_name', 'unit.id as unit_id_presensi');
+            ->leftJoin('shift_detail', 'ms_pegawai.presensi_shift_detail_id', '=', 'shift_detail.id')
+            ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
             ->select(
                 'ms_orang.id',
                 'ms_orang.no_ktp',
@@ -35,6 +34,7 @@ class PegawaiController extends Controller
                  'ms_orang.alamat_ktp',
                  'ms_orang.no_hp',
                  'ms_unit.nama as nama_unit',
+                 'shift.name as nama_shift',
                  'presensi_ms_unit_detail.lokasi as lokasi_presensi'
             );
 
@@ -45,8 +45,7 @@ class PegawaiController extends Controller
                 $q->where('ms_orang.nama', 'like', "%$search%")
                     ->orWhere('ms_orang.no_ktp', 'like', "%$search%")
                     ->orWhere('ms_unit.nama', 'like', "%$search%")
-                    //->orWhere('unit_detail.name', 'like', "%$search%")
-                    //->orWhere('shift.name', 'like', "%$search%");
+                    ->orWhere('shift.name', 'like', "%$search%");
                     ;
             });
         } else {
@@ -59,12 +58,9 @@ class PegawaiController extends Controller
             if ($request->filled('ms_unit')) {
                 $query->where('ms_unit.name', 'like', '%' . $request->unit . '%');
             }
-            // if ($request->filled('unit_detail')) {
-            //     $query->where('unit_detail.name', 'like', '%' . $request->unit_detail . '%');
-            // }
-            // if ($request->filled('shift')) {
-            //     $query->where('shift.name', 'like', '%' . $request->shift . '%');
-            // }
+            if ($request->filled('shift')) {
+                $query->where('shift.name', 'like', '%' . $request->shift . '%');
+            }
         }
 
         $pegawaiPaginate = $query->paginate(20);
@@ -167,8 +163,8 @@ class PegawaiController extends Controller
             ->leftJoin('ms_pegawai', 'ms_orang.id', '=', 'ms_pegawai.id_orang')
             ->leftJoin('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
             ->leftJoin('presensi_ms_unit_detail', 'presensi_ms_unit_detail.ms_unit_id', '=', 'ms_unit.id')
-            //->leftJoin('shift_detail', 'ms_pegawai.shift_detail_id', '=', 'shift_detail.id')
-            //->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
+            ->leftJoin('shift_detail', 'ms_pegawai.presensi_shift_detail_id', '=', 'shift_detail.id')
+            ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
             ->select(
                 'ms_orang.id',
                 'ms_orang.no_ktp',
@@ -183,6 +179,7 @@ class PegawaiController extends Controller
                 'ms_orang.alamat_ktp',
                 'ms_orang.no_hp',
                 'ms_unit.nama as nama_unit',
+                'shift.name as nama_shift',
                 'presensi_ms_unit_detail.lokasi as lokasi_presensi'
             )
             ->whereIn('ms_pegawai.id_unit', $unitIds);
@@ -192,8 +189,8 @@ class PegawaiController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('ms_orang.nama', 'like', "%$search%")
                     ->orWhere('ms_orang.no_ktp', 'like', "%$search%")
-                    ->orWhere('ms_unit.nama', 'like', "%$search%");
-                    //->orWhere('shift.name', 'like', "%$search%");
+                    ->orWhere('ms_unit.nama', 'like', "%$search%")
+                    ->orWhere('shift.name', 'like', "%$search%");
             });
         } else {
             if ($request->filled('nama')) {
@@ -205,9 +202,9 @@ class PegawaiController extends Controller
             if ($request->filled('ms_unit')) {
                 $query->where('ms_unit.nama', 'like', '%' . $request->unit . '%');
             }
-            // if ($request->filled('shift')) {
-            //     $query->where('shift.name', 'like', '%' . $request->shift . '%');
-            // }
+            if ($request->filled('shift')) {
+                $query->where('shift.name', 'like', '%' . $request->shift . '%');
+            }
         }
 
         $pegawais = $query->paginate(20);
@@ -226,21 +223,31 @@ class PegawaiController extends Controller
         }
 
         // Load relasi yang diperlukan
-        $pegawai->load(['unitDetailPresensi', 'shiftDetail.shift']);
+        $pegawai->load([
+            'pegawai.shiftDetail.shift',
+            'pegawai.unitDetailPresensi.unit'
+        ]);
 
         if (!$pegawai->unitDetailPresensi) {
             return response()->json(['message' => 'Lokasi presensi tidak ditemukan untuk pegawai ini'], 404);
         }
+        
+        $namaLengkap = trim(implode(' ', [
+            $pegawai->gelar_depan,
+            $pegawai->nama,
+            $pegawai->gelar_belakang,
+        ]));
+
 
         return response()->json([
             'pegawai_id' => $pegawai->id,
             'no_ktp' => $pegawai->no_ktp,
-            'nama' => $pegawai->nama,
+            'nama' => $namaLengkap,
             'lokasi_presensi' => [
                 'unit_detail_id' => $pegawai->unitDetailPresensi->id,
-                'nama_lokasi' => $pegawai->unitDetailPresensi->name,
+                'nama_lokasi' => $pegawai->pegawai?->unitDetailPresensi?->unit?->nama,
                 'polygon_lokasi' => $pegawai->unitDetailPresensi->lokasi,
-                'unit_name' => $pegawai->unitDetailPresensi->unit->name ?? null
+                'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
             ],
             'shift_info' => $pegawai->shiftDetail ? [
                 'shift_detail_id' => $pegawai->shiftDetail->id,

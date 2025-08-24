@@ -20,6 +20,8 @@ class MsPegawai extends Model
 
     protected $keyType = 'int';
 
+    public $timestamps = false;
+
 
     protected $fillable = [
         'id_orang',

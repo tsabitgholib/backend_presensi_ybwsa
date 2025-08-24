@@ -73,14 +73,11 @@ class UnitDetailController extends Controller
         ]);
 
         try {
-            // Cek apakah sudah ada unit detail
             $unitDetail = UnitDetail::where('ms_unit_id', $unit_id)->first();
             
             if ($unitDetail) {
-                // Update existing
                 $unitDetail->update(['lokasi' => $request->lokasi]);
             } else {
-                // Create new
                 $unitDetail = UnitDetail::create([
                     'ms_unit_id' => $unit_id,
                     'lokasi' => $request->lokasi
@@ -125,7 +122,7 @@ class UnitDetailController extends Controller
         $request->validate([
             'unit_detail_id' => 'required|exists:presensi_ms_unit_detail,id',
             'pegawai_ids' => 'required|array',
-            'pegawai_ids.*' => 'exists:pegawai,id',
+            'pegawai_ids.*' => 'exists:ms_orang,id',
         ]);
 
         // Validasi unit detail milik unit admin
@@ -135,13 +132,13 @@ class UnitDetailController extends Controller
         }
 
         // Cek apakah unit detail ini milik unit yang bisa diakses admin
-        $targetUnit = Unit::find($unitDetail->ms_unit_id);
-        if (!$targetUnit || $targetUnit->id_parent !== $admin->unit_id) {
-            return response()->json(['message' => 'Unit detail tidak dapat diakses'], 403);
-        }
+        // $targetUnit = Unit::find($unitDetail->ms_unit_id);
+        // if (!$targetUnit || $targetUnit->id_parent !== $admin->unit_id) {
+        //     return response()->json(['message' => 'Unit detail tidak dapat diakses'], 403);
+        // }
 
         // Update pegawai
-        $count = \App\Models\MsPegawai::whereIn('id', $request->pegawai_ids)
+        $count = \App\Models\MsPegawai::whereIn('id_orang', $request->pegawai_ids)
             ->update(['presensi_ms_unit_detail_id' => $request->unit_detail_id]);
 
         return response()->json([

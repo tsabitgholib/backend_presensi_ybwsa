@@ -98,7 +98,7 @@ class Presensi extends Model
 
     public function pegawai()
     {
-        return $this->belongsTo(MsPegawai::class, 'no_ktp', 'no_ktp');
+        return $this->belongsTo(MsOrang::class, 'no_ktp', 'no_ktp');
     }
     public function shift()
     {
