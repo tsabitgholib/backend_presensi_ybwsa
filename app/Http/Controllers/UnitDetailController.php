@@ -17,8 +17,10 @@ class UnitDetailController extends Controller
             ->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'unit' => $item->unit->nama ?? null,
+                    'nama' => $item->unit->nama ?? null,
                     'lokasi' => $item->lokasi,
+                    'lokasi2' => $item->lokasi2,
+                    'lokasi3' => $item->lokasi3,
                     'created_at' => $item->created_at,
                     'updated_at' => $item->updated_at,
                 ];
@@ -32,8 +34,10 @@ class UnitDetailController extends Controller
         $data = UnitDetail::with('unit:id,nama')->get()->map(function ($item) {
             return [
                 'id' => $item->id,
-                'unit' => $item->unit->nama ?? null,
+                'nama' => $item->unit->nama ?? null,
                 'lokasi' => $item->lokasi,
+                'lokasi2' => $item->lokasi2,
+                'lokasi3' => $item->lokasi3,
                 'created_at' => $item->created_at,
                 'updated_at' => $item->updated_at,
             ];
@@ -69,7 +73,9 @@ class UnitDetailController extends Controller
         // }
 
         $request->validate([
-            'lokasi' => 'required|array',
+            'lokasi' => 'array',
+            'lokasi2' => 'array',
+            'lokasi3' => 'array',
         ]);
 
         try {
@@ -77,6 +83,13 @@ class UnitDetailController extends Controller
             
             if ($unitDetail) {
                 $unitDetail->update(['lokasi' => $request->lokasi]);
+                if ($request->has('lokasi2')) {
+                    $unitDetail->lokasi2 = $request->lokasi2;
+                }
+                if ($request->has('lokasi3')) {
+                    $unitDetail->lokasi3 = $request->lokasi3;
+                }
+                $unitDetail->save();
             } else {
                 $unitDetail = UnitDetail::create([
                     'ms_unit_id' => $unit_id,
@@ -102,8 +115,10 @@ class UnitDetailController extends Controller
         }
         return response()->json([
             'id' => $detail->id,
-            'unit' => $detail->unit->nama ?? null,
+            'nama' => $detail->unit->nama ?? null,
             'lokasi' => $detail->lokasi,
+            'lokasi2' => $detail->lokasi2,
+            'lokasi3' => $detail->lokasi3,
             'created_at' => $detail->created_at,
             'updated_at' => $detail->updated_at,
         ]);

@@ -13,6 +13,8 @@ class UnitDetail extends Model
     protected $fillable = ['ms_unit_id', 'lokasi'];
     protected $casts = [
         'lokasi' => 'array',
+        'lokasi2' => 'array',
+        'lokasi3' => 'array',
     ];
 
     public function unit()

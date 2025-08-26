@@ -23,11 +23,13 @@ class AuthPegawaiController extends Controller
         }
 
         $payload = [
-            'sub' => $orang->id, // ini ID orang, bukan pegawai
+            'sub' => $orang->id,
             'no_ktp' => $orang->no_ktp,
             'role' => 'pegawai',
+            'iat' => time(),
             'exp' => time() + 86400
         ];
+
 
         $token = JWT::encode($payload, env('JWT_SECRET'));
 
@@ -46,7 +48,8 @@ class AuthPegawaiController extends Controller
         // Load relasi yang diperlukan untuk Android/iOS
         $pegawai->load([
             'pegawai.shiftDetail.shift',
-            'pegawai.unitDetailPresensi.unit'
+            'pegawai.unitDetailPresensi.unit',
+            'pegawai'
         ]);
 
         $namaLengkap = trim(implode(' ', [
@@ -55,10 +58,28 @@ class AuthPegawaiController extends Controller
             $pegawai->gelar_belakang,
         ]));
 
+        $unit = $pegawai->pegawai->unit ?? null;
+
+        $baseUrl = "https://pegawai.ybw-sa.org/uploads/sdi/sekrt/"; //default
+        if ($unit) {
+            $rootId = $unit->getRootParentId();
+            if ($rootId == 4) {
+                $baseUrl = "https://pegawai.ybw-sa.org/uploads/sdi/sekrt/";
+            } elseif ($rootId == 147) {
+                $baseUrl = "https://sdi.rsisultanagung.com/foto-karyawan/";
+            } elseif ($rootId == 10 || $rootId == 37) {
+                $baseUrl = "https://sim.unissula.ac.id/app/modules/sdm/uploads/fotopeg/";
+            }
+        }
+
+        $fotoPegawai = $pegawai->foto ? $baseUrl . $pegawai->foto : null;
+
+
         $response = [
             'id' => $pegawai->pegawai->id ?? null,
             'no_ktp' => $pegawai->no_ktp,
             'nama' => $namaLengkap,
+            'foto' => $fotoPegawai,
             'tmpt_lahir' => $pegawai->tmpt_lahir,
             'tgl_lahir' => $pegawai->tgl_lahir,
             'jenis_kelamin' => $pegawai->jenis_kelamin,
@@ -100,10 +121,13 @@ class AuthPegawaiController extends Controller
                 'unit_id' => $pegawai->pegawai->unitDetailPresensi->ms_unit_id,
                 'name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
                 'lokasi' => $pegawai->pegawai->unitDetailPresensi->lokasi ?? null,
+                'lokasi2' => $pegawai->pegawai->unitDetailPresensi->lokasi2 ?? null,
+                'lokasi3' => $pegawai->pegawai->unitDetailPresensi->lokasi3 ?? null,
                 'created_at' => $pegawai->pegawai->unitDetailPresensi->created_at,
                 'updated_at' => $pegawai->pegawai->unitDetailPresensi->updated_at
             ] : null
         ];
+
 
         return response()->json($response);
     }

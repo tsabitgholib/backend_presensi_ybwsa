@@ -25,6 +25,7 @@ class AuthAdminController extends Controller
             'sub' => $admin->id,
             'email' => $admin->email,
             'role' => $admin->role,
+            'iat' => time(),
             'exp' => time() + (10 * 365 * 24 * 60 * 60) // 10 tahun
 
         ];

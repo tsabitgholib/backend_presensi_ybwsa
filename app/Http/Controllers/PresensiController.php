@@ -70,7 +70,10 @@ class PresensiController extends Controller
         }
 
         // Load relasi yang diperlukan untuk validasi
-        $pegawai->load(['shiftDetail.shift', 'unitDetailPresensi']);
+        $pegawai->load([
+            'pegawai.shiftDetail.shift',
+            'pegawai.unitDetailPresensi.unit'
+        ]);
 
         $request->validate([
             'lokasi' => 'required|array|size:2', // [lat, lng]

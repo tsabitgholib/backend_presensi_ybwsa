@@ -73,4 +73,14 @@ protected $table = 'ms_unit'; // nama tabel di DB
     {
         return $this->hasMany(Shift::class);
     }
+
+    public function getRootParentId()
+{
+    $unit = $this;
+    while ($unit->parent) {
+        $unit = $unit->parent;
+    }
+    return $unit->id;
+}
+
 }

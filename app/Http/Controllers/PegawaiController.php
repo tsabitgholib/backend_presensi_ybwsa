@@ -246,7 +246,9 @@ class PegawaiController extends Controller
             'lokasi_presensi' => [
                 'unit_detail_id' => $pegawai->unitDetailPresensi->id,
                 'nama_lokasi' => $pegawai->pegawai?->unitDetailPresensi?->unit?->nama,
-                'polygon_lokasi' => $pegawai->unitDetailPresensi->lokasi,
+                'lokasi' => $pegawai->unitDetailPresensi->lokasi,
+                'lokasi2' => $pegawai->unitDetailPresensi->lokasi2,
+                'lokasi3' => $pegawai->unitDetailPresensi->lokasi3,
                 'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
             ],
             'shift_info' => $pegawai->shiftDetail ? [

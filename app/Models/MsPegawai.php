@@ -28,6 +28,7 @@ class MsPegawai extends Model
         'id_user',
         'id_unit',
         'status',
+        'nip_unit',
         'presensi_shift_detail_id',
         'presensi_ms_unit_detail_id'
     ];
@@ -40,8 +41,9 @@ class MsPegawai extends Model
 
     public function orang()
     {
-        return $this->belongsTo(MsPegawai::class, 'id_orang', 'id');
+        return $this->belongsTo(MsOrang::class, 'id_orang', 'id');
     }
+
 
     public function unit()
     {
