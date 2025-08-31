@@ -75,10 +75,99 @@ class AuthPegawaiController extends Controller
         $fotoPegawai = $pegawai->foto ? $baseUrl . $pegawai->foto : null;
 
 
+        // $response = [
+        //     'id' => $pegawai->pegawai->id ?? null,
+        //     'no_ktp' => $pegawai->no_ktp,
+        //     'nama' => $namaLengkap,
+        //     'foto' => $fotoPegawai,
+        //     'tmpt_lahir' => $pegawai->tmpt_lahir,
+        //     'tgl_lahir' => $pegawai->tgl_lahir,
+        //     'jenis_kelamin' => $pegawai->jenis_kelamin,
+        //     'no_hp' => $pegawai->no_hp,
+        //     'jabatan' => $pegawai->pegawai->profesi ?? null,
+        //     'shift_detail_id' => $pegawai->pegawai->presensi_shift_detail_id ?? null,
+        //     'unit_detail_id_presensi' => $pegawai->pegawai->presensi_ms_unit_detail_id ?? null,
+        //     'shift_detail' => $pegawai->pegawai->shiftDetail ? [
+        //         'id' => $pegawai->pegawai->shiftDetail->id,
+        //         'shift_id' => $pegawai->pegawai->shiftDetail->shift_id,
+        //         'senin_masuk' => $pegawai->pegawai->shiftDetail->senin_masuk,
+        //         'senin_pulang' => $pegawai->pegawai->shiftDetail->senin_pulang,
+        //         'selasa_masuk' => $pegawai->pegawai->shiftDetail->selasa_masuk,
+        //         'selasa_pulang' => $pegawai->pegawai->shiftDetail->selasa_pulang,
+        //         'rabu_masuk' => $pegawai->pegawai->shiftDetail->rabu_masuk,
+        //         'rabu_pulang' => $pegawai->pegawai->shiftDetail->rabu_pulang,
+        //         'kamis_masuk' => $pegawai->pegawai->shiftDetail->kamis_masuk,
+        //         'kamis_pulang' => $pegawai->pegawai->shiftDetail->kamis_pulang,
+        //         'jumat_masuk' => $pegawai->pegawai->shiftDetail->jumat_masuk,
+        //         'jumat_pulang' => $pegawai->pegawai->shiftDetail->jumat_pulang,
+        //         'sabtu_masuk' => $pegawai->pegawai->shiftDetail->sabtu_masuk,
+        //         'sabtu_pulang' => $pegawai->pegawai->shiftDetail->sabtu_pulang,
+        //         'minggu_masuk' => $pegawai->pegawai->shiftDetail->minggu_masuk,
+        //         'minggu_pulang' => $pegawai->pegawai->shiftDetail->minggu_pulang,
+        //         'toleransi_terlambat' => $pegawai->pegawai->shiftDetail->toleransi_terlambat,
+        //         'toleransi_pulang' => $pegawai->pegawai->shiftDetail->toleransi_pulang,
+        //         'created_at' => $pegawai->pegawai->shiftDetail->created_at,
+        //         'updated_at' => $pegawai->pegawai->shiftDetail->updated_at,
+        //         'shift' => $pegawai->pegawai->shiftDetail->shift ? [
+        //             'id' => $pegawai->pegawai->shiftDetail->shift->id,
+        //             'name' => $pegawai->pegawai->shiftDetail->shift->name,
+        //             'unit_id' => $pegawai->pegawai->shiftDetail->shift->unit_id,
+        //             'created_at' => $pegawai->pegawai->shiftDetail->shift->created_at,
+        //             'updated_at' => $pegawai->pegawai->shiftDetail->shift->updated_at
+        //         ] : null
+        //     ] : null,
+        //     'unit_detail_presensi' => $pegawai->pegawai->unitDetailPresensi ? [
+        //         'id' => $pegawai->pegawai->unitDetailPresensi->id,
+        //         'unit_id' => $pegawai->pegawai->unitDetailPresensi->ms_unit_id,
+        //         'name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+        //         'lokasi' => $pegawai->pegawai->unitDetailPresensi->lokasi ?? null,
+        //         'lokasi2' => $pegawai->pegawai->unitDetailPresensi->lokasi2 ?? null,
+        //         'lokasi3' => $pegawai->pegawai->unitDetailPresensi->lokasi3 ?? null,
+        //         'created_at' => $pegawai->pegawai->unitDetailPresensi->created_at,
+        //         'updated_at' => $pegawai->pegawai->unitDetailPresensi->updated_at
+        //     ] : null
+        // ];
+
+        $unitDetail = $pegawai->pegawai->unitDetailPresensi;
+
+        $lokasi_presensi = [];
+
+        if ($unitDetail) {
+            // lokasi utama
+            if (!empty($unitDetail->lokasi) && is_array($unitDetail->lokasi) && count($unitDetail->lokasi) > 0) {
+                $lokasi_presensi[] = [
+                    'unit_detail_id' => $unitDetail->id,
+                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                    'lokasi' => $unitDetail->lokasi,
+                    'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                ];
+            }
+
+            // lokasi 2
+            if (!empty($unitDetail->lokasi2) && is_array($unitDetail->lokasi2) && count($unitDetail->lokasi2) > 0) {
+                $lokasi_presensi[] = [
+                    'unit_detail_id' => $unitDetail->id,
+                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama  . ' - Area 2',
+                    'lokasi' => $unitDetail->lokasi2,
+                    'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                ];
+            }
+
+            // lokasi 3
+            if (!empty($unitDetail->lokasi3) && is_array($unitDetail->lokasi3) && count($unitDetail->lokasi3) > 0) {
+                $lokasi_presensi[] = [
+                    'unit_detail_id' => $unitDetail->id,
+                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama .' - Area 3',
+                    'lokasi' => $unitDetail->lokasi3,
+                    'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                ];
+            }
+        }
+
         $response = [
-            'id' => $pegawai->pegawai->id ?? null,
+            'id' => $pegawai->id,
             'no_ktp' => $pegawai->no_ktp,
-            'nama' => $namaLengkap,
+            'nama' => $pegawai->nama,
             'foto' => $fotoPegawai,
             'tmpt_lahir' => $pegawai->tmpt_lahir,
             'tgl_lahir' => $pegawai->tgl_lahir,
@@ -87,46 +176,38 @@ class AuthPegawaiController extends Controller
             'jabatan' => $pegawai->pegawai->profesi ?? null,
             'shift_detail_id' => $pegawai->pegawai->presensi_shift_detail_id ?? null,
             'unit_detail_id_presensi' => $pegawai->pegawai->presensi_ms_unit_detail_id ?? null,
-            'shift_detail' => $pegawai->pegawai->shiftDetail ? [
-                'id' => $pegawai->pegawai->shiftDetail->id,
-                'shift_id' => $pegawai->pegawai->shiftDetail->shift_id,
-                'senin_masuk' => $pegawai->pegawai->shiftDetail->senin_masuk,
-                'senin_pulang' => $pegawai->pegawai->shiftDetail->senin_pulang,
-                'selasa_masuk' => $pegawai->pegawai->shiftDetail->selasa_masuk,
-                'selasa_pulang' => $pegawai->pegawai->shiftDetail->selasa_pulang,
-                'rabu_masuk' => $pegawai->pegawai->shiftDetail->rabu_masuk,
-                'rabu_pulang' => $pegawai->pegawai->shiftDetail->rabu_pulang,
-                'kamis_masuk' => $pegawai->pegawai->shiftDetail->kamis_masuk,
-                'kamis_pulang' => $pegawai->pegawai->shiftDetail->kamis_pulang,
-                'jumat_masuk' => $pegawai->pegawai->shiftDetail->jumat_masuk,
-                'jumat_pulang' => $pegawai->pegawai->shiftDetail->jumat_pulang,
-                'sabtu_masuk' => $pegawai->pegawai->shiftDetail->sabtu_masuk,
-                'sabtu_pulang' => $pegawai->pegawai->shiftDetail->sabtu_pulang,
-                'minggu_masuk' => $pegawai->pegawai->shiftDetail->minggu_masuk,
-                'minggu_pulang' => $pegawai->pegawai->shiftDetail->minggu_pulang,
-                'toleransi_terlambat' => $pegawai->pegawai->shiftDetail->toleransi_terlambat,
-                'toleransi_pulang' => $pegawai->pegawai->shiftDetail->toleransi_pulang,
-                'created_at' => $pegawai->pegawai->shiftDetail->created_at,
-                'updated_at' => $pegawai->pegawai->shiftDetail->updated_at,
-                'shift' => $pegawai->pegawai->shiftDetail->shift ? [
-                    'id' => $pegawai->pegawai->shiftDetail->shift->id,
-                    'name' => $pegawai->pegawai->shiftDetail->shift->name,
-                    'unit_id' => $pegawai->pegawai->shiftDetail->shift->unit_id,
-                    'created_at' => $pegawai->pegawai->shiftDetail->shift->created_at,
-                    'updated_at' => $pegawai->pegawai->shiftDetail->shift->updated_at
-                ] : null
-            ] : null,
-            'unit_detail_presensi' => $pegawai->pegawai->unitDetailPresensi ? [
-                'id' => $pegawai->pegawai->unitDetailPresensi->id,
-                'unit_id' => $pegawai->pegawai->unitDetailPresensi->ms_unit_id,
-                'name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
-                'lokasi' => $pegawai->pegawai->unitDetailPresensi->lokasi ?? null,
-                'lokasi2' => $pegawai->pegawai->unitDetailPresensi->lokasi2 ?? null,
-                'lokasi3' => $pegawai->pegawai->unitDetailPresensi->lokasi3 ?? null,
-                'created_at' => $pegawai->pegawai->unitDetailPresensi->created_at,
-                'updated_at' => $pegawai->pegawai->unitDetailPresensi->updated_at
-            ] : null
+                        'shift_detail' => $pegawai->pegawai->shiftDetail ? [
+                        'id' => $pegawai->pegawai->shiftDetail->id,
+                        'shift_id' => $pegawai->pegawai->shiftDetail->shift_id,
+                        'senin_masuk' => $pegawai->pegawai->shiftDetail->senin_masuk,
+                        'senin_pulang' => $pegawai->pegawai->shiftDetail->senin_pulang,
+                        'selasa_masuk' => $pegawai->pegawai->shiftDetail->selasa_masuk,
+                        'selasa_pulang' => $pegawai->pegawai->shiftDetail->selasa_pulang,
+                        'rabu_masuk' => $pegawai->pegawai->shiftDetail->rabu_masuk,
+                        'rabu_pulang' => $pegawai->pegawai->shiftDetail->rabu_pulang,
+                        'kamis_masuk' => $pegawai->pegawai->shiftDetail->kamis_masuk,
+                        'kamis_pulang' => $pegawai->pegawai->shiftDetail->kamis_pulang,
+                        'jumat_masuk' => $pegawai->pegawai->shiftDetail->jumat_masuk,
+                        'jumat_pulang' => $pegawai->pegawai->shiftDetail->jumat_pulang,
+                        'sabtu_masuk' => $pegawai->pegawai->shiftDetail->sabtu_masuk,
+                        'sabtu_pulang' => $pegawai->pegawai->shiftDetail->sabtu_pulang,
+                        'minggu_masuk' => $pegawai->pegawai->shiftDetail->minggu_masuk,
+                        'minggu_pulang' => $pegawai->pegawai->shiftDetail->minggu_pulang,
+                        'toleransi_terlambat' => $pegawai->pegawai->shiftDetail->toleransi_terlambat,
+                        'toleransi_pulang' => $pegawai->pegawai->shiftDetail->toleransi_pulang,
+                        'created_at' => $pegawai->pegawai->shiftDetail->created_at,
+                        'updated_at' => $pegawai->pegawai->shiftDetail->updated_at,
+                        'shift' => $pegawai->pegawai->shiftDetail->shift ? [
+                            'id' => $pegawai->pegawai->shiftDetail->shift->id,
+                            'name' => $pegawai->pegawai->shiftDetail->shift->name,
+                            'unit_id' => $pegawai->pegawai->shiftDetail->shift->unit_id,
+                            'created_at' => $pegawai->pegawai->shiftDetail->shift->created_at,
+                            'updated_at' => $pegawai->pegawai->shiftDetail->shift->updated_at
+                        ] : null
+                    ] : null,
+            'lokasi_presensi' => $lokasi_presensi,
         ];
+
 
 
         return response()->json($response);

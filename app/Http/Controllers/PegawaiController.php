@@ -238,19 +238,48 @@ class PegawaiController extends Controller
             $pegawai->gelar_belakang,
         ]));
 
+        $unitDetail = $pegawai->pegawai->unitDetailPresensi;
+
+        $lokasi_presensi = [];
+
+        if ($unitDetail) {
+            // lokasi utama
+            if (!empty($unitDetail->lokasi) && is_array($unitDetail->lokasi) && count($unitDetail->lokasi) > 0) {
+                $lokasi_presensi[] = [
+                    'unit_detail_id' => $unitDetail->id,
+                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                    'lokasi' => $unitDetail->lokasi,
+                    'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                ];
+            }
+
+            // lokasi 2
+            if (!empty($unitDetail->lokasi2) && is_array($unitDetail->lokasi2) && count($unitDetail->lokasi2) > 0) {
+                $lokasi_presensi[] = [
+                    'unit_detail_id' => $unitDetail->id,
+                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama  . ' - Area 2',
+                    'lokasi' => $unitDetail->lokasi2,
+                    'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                ];
+            }
+
+            // lokasi 3
+            if (!empty($unitDetail->lokasi3) && is_array($unitDetail->lokasi3) && count($unitDetail->lokasi3) > 0) {
+                $lokasi_presensi[] = [
+                    'unit_detail_id' => $unitDetail->id,
+                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama .' - Area 3',
+                    'lokasi' => $unitDetail->lokasi3,
+                    'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
+                ];
+            }
+        }
+
 
         return response()->json([
             'pegawai_id' => $pegawai->id,
             'no_ktp' => $pegawai->no_ktp,
             'nama' => $namaLengkap,
-            'lokasi_presensi' => [
-                'unit_detail_id' => $pegawai->unitDetailPresensi->id,
-                'nama_lokasi' => $pegawai->pegawai?->unitDetailPresensi?->unit?->nama,
-                'lokasi' => $pegawai->unitDetailPresensi->lokasi,
-                'lokasi2' => $pegawai->unitDetailPresensi->lokasi2,
-                'lokasi3' => $pegawai->unitDetailPresensi->lokasi3,
-                'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
-            ],
+            'lokasi_presensi' => $lokasi_presensi,
             'shift_info' => $pegawai->shiftDetail ? [
                 'shift_detail_id' => $pegawai->shiftDetail->id,
                 'shift_name' => $pegawai->shiftDetail->shift->name ?? null,
