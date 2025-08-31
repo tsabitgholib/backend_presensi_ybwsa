@@ -66,8 +66,9 @@ protected $table = 'ms_unit'; // nama tabel di DB
 
     public function unitDetails()
     {
-        return $this->hasMany(UnitDetail::class);
+        return $this->hasMany(UnitDetail::class, 'ms_unit_id', 'id');
     }
+
 
     public function shifts()
     {
