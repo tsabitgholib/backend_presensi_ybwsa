@@ -96,9 +96,9 @@ class PresensiController extends Controller
         
         // Validasi lokasi (point-in-polygon)
         $polygon = $unitDetail->lokasi;
-        if (!$this->isPointInPolygon($request->lokasi, $polygon)) {
-            return response()->json(['message' => 'Lokasi di luar area'], 400);
-        }
+        // if (!$this->isPointInPolygon($request->lokasi, $polygon)) {
+        //     return response()->json(['message' => 'Lokasi di luar area'], 400);
+        // }
         
         // Cek apakah hari ini adalah hari libur
         $isHariLibur = \App\Models\HariLibur::isHariLibur($unitDetail->id, $now->toDateString());
@@ -1315,9 +1315,13 @@ class PresensiController extends Controller
                 $potongan = $this->calculatePenaltyAmount($p, $laukPaukUnit);
                 $totalPotongan += $potongan;
             }
+
+            $nominalPerhari = $hariEfektif > 0 ? $nominalLaukPauk / $hariEfektif : 0;
+
+            $potonganDinas = $jumlahDinas * $nominalPerhari;
             
             // Hitung nominal lauk pauk setelah potongan (hanya untuk perhitungan internal)
-            $nominalLaukPaukSetelahPotongan = max(0, $nominalLaukPauk - $totalPotongan);
+            $nominalLaukPaukSetelahPotongan = max(0, $nominalLaukPauk - $totalPotongan - $potonganDinas);
             
             $result[] = [
                 'no' => $no++,
@@ -1337,7 +1341,7 @@ class PresensiController extends Controller
                 'jumlah_jam_pulang_kosong' => $jumlahJamPulangKosong,
                 'lembur' => 0,
                 'jumlah_libur' => $jumlahLibur,
-                'nominal_lauk_pauk' => $nominalLaukPaukSetelahPotongan // Response tetap sama, tidak berubah
+                'nominal_lauk_pauk' => $nominalLaukPaukSetelahPotongan
             ];
         }
         return response()->json($result);
@@ -1627,6 +1631,149 @@ public function getOvertimePegawai(Request $request)
     return response()->json($result->values());
 }
 
+        public function adminPresensiPegawai(Request $request)
+{
+    $admin = $request->get('admin');
+    if (!$admin) {
+        return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+    }
+
+    $request->validate([
+        'tanggal' => 'required|date',
+        'keterangan' => 'nullable|string|max:255',
+        'pegawai_ids' => 'required|array',
+        'pegawai_ids.*' => 'exists:ms_pegawai,id',
+    ]);
+
+    $pegawais = MsPegawai::with('shiftDetail', 'orang')
+        ->whereIn('id', $request->pegawai_ids)
+        ->get();
+
+    if ($pegawais->isEmpty()) {
+        return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
+    }
+
+    $createdPresensi = [];
+    $errors = [];
+
+    $start = Carbon::parse($request->tanggal_mulai);
+    $end = Carbon::parse($request->tanggal_selesai);
+
+    foreach ($pegawais as $pegawai) {
+        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            $tanggal = $date->format('Y-m-d');
+
+            // Cek duplikat presensi
+            $existingPresensi = Presensi::where('no_ktp', $pegawai->orang->no_ktp ?? null)
+                ->whereDate('waktu_masuk', $tanggal)
+                ->first();
+
+            if ($existingPresensi) {
+                $errors[] = "Pegawai {$pegawai->orang->nama} sudah memiliki presensi pada tanggal {$tanggal}";
+                continue;
+            }
+
+            $shiftDetail = $pegawai->shiftDetail;
+            if (!$shiftDetail) {
+                $errors[] = "Pegawai {$pegawai->orang->nama} tidak memiliki shift detail";
+                continue;
+            }
+
+            $waktuMasuk = $this->getWaktuMasukShift($shiftDetail, $date);
+            $waktuPulang = $this->getWaktuPulangShift($shiftDetail, $date);
+
+            if (!$waktuMasuk || !$waktuPulang) {
+                $errors[] = "Pegawai {$pegawai->orang->nama} tidak memiliki jam kerja pada hari " . $date->locale('id')->isoFormat('dddd');
+                continue;
+            }
+
+            try {
+                $presensi = Presensi::create([
+                    'no_ktp' => $pegawai->orang->no_ktp,
+                    'shift_id' => $shiftDetail->shift_id,
+                    'shift_detail_id' => $shiftDetail->id,
+                    'waktu_masuk' => $waktuMasuk,
+                    'waktu_pulang' => $waktuPulang,
+                    'status_masuk' => 'absen_masuk',
+                    'status_pulang' => 'absen_pulang',
+                    'lokasi_masuk' => null,
+                    'lokasi_pulang' => null,
+                    'keterangan_masuk' => $request->keterangan,
+                    'keterangan_pulang' => $request->keterangan,
+                    'status_presensi' => 'hadir',
+                ]);
+
+                $createdPresensi[] = [
+                    'pegawai' => $pegawai->orang->nama,
+                    'tanggal' => $tanggal,
+                    'presensi_id' => $presensi->id,
+                ];
+            } catch (\Exception $e) {
+                $errors[] = "Gagal membuat presensi untuk pegawai {$pegawai->orang->nama} pada tanggal {$tanggal}: " . $e->getMessage();
+            }
+        }
+    }
+
+    return response()->json([
+        'message' => 'Berhasil Mempresensikan pegawai',
+        'created_count' => count($createdPresensi),
+        'error_count' => count($errors),
+        'created_data' => $createdPresensi,
+        'errors' => $errors,
+    ]);
+}
+
+    /**
+     * Get waktu masuk berdasarkan shift detail dan tanggal
+     * 
+     * @param ShiftDetail $shiftDetail
+     * @param Carbon $date
+     * @return Carbon|null
+     */
+    private function getWaktuMasukShift($shiftDetail, $date)
+    {
+        $hari = strtolower($date->locale('id')->isoFormat('dddd'));
+        $masukKey = $hari . '_masuk';
+        //dd($masukKey, $shiftDetail->$masukKey);
+        $jamString = trim($shiftDetail->$masukKey ?? '');
+    
+        if (!$jamString) {
+            return null; // tidak ada data jam
+        }
+    
+        try {
+            // Gunakan H:i karena di DB formatnya "08:00"
+            $jamMasuk = Carbon::createFromFormat('H:i', $jamString);
+            return $date->copy()->setTime($jamMasuk->hour, $jamMasuk->minute, 0);
+        } catch (\Exception $e) {
+            //Log::error("Format jam masuk tidak valid: {$jamString}");
+            return null;
+        }
+    }
+    
+
+    /**
+     * Get waktu pulang berdasarkan shift detail dan tanggal
+     * 
+     * @param ShiftDetail $shiftDetail
+     * @param Carbon $date
+     * @return Carbon|null
+     */
+    private function getWaktuPulangShift($shiftDetail, $date)
+    {
+        $hari = strtolower($date->locale('id')->isoFormat('dddd'));
+        $pulangKey = $hari . '_pulang';
+        
+        if (!$shiftDetail->$pulangKey) {
+            return null;
+        }
+
+        // Parse jam pulang dari shift (format H:i)
+        $jamPulang = Carbon::createFromFormat('H:i', $shiftDetail->$pulangKey);
+        
+        // Kombinasikan dengan tanggal
+        return $date->copy()->setTime($jamPulang->hour, $jamPulang->minute, 0);
+    }
 
 
 

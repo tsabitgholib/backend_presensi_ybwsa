@@ -35,9 +35,9 @@ class LaukPaukUnitController extends Controller
         $unitId = $unitResult['unit_id'];
 
         $laukPauk = \App\Models\LaukPaukUnit::where('unit_id', $unitId)->first();
-        if (!$laukPauk) {
-            return response()->json(['unit_id' => $unitId, 'nominal' => 0]);
-        }
+        // if (!$laukPauk) {
+        //     return response()->json(['unit_id' => $unitId, 'nominal' => 0]);
+        // }
         return response()->json($laukPauk);
     }
 

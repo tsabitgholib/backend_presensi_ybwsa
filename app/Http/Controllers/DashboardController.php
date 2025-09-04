@@ -45,7 +45,10 @@ class DashboardController extends Controller
         // Get employees based on scope
         if ($isAllUnits) {
             // Super admin viewing all units
-            $pegawais = MsPegawai::whereHas('unitDetailPresensi')->get(['id', 'no_ktp', 'nama']);
+            $pegawais = MsPegawai::with(['orang:id,no_ktp,nama'])
+                ->whereHas('unitDetailPresensi')
+                ->get(['id', 'id_orang', 'presensi_ms_unit_detail_id']);
+
             $scopeInfo = [
                 'type' => 'all_units',
                 'unit' => 'Semua Unit',
@@ -63,21 +66,25 @@ class DashboardController extends Controller
                 }
             }
             
-            $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($targetUnitId) {
-                $q->where('unit_id', $targetUnitId);
-            })->get(['id', 'no_ktp', 'nama']);
+            $pegawais = MsPegawai::with(['orang:id,no_ktp,nama'])
+                ->whereHas('unitDetailPresensi', function ($q) use ($targetUnitId) {
+                    $q->where('ms_unit_id', $targetUnitId);
+                })
+                ->get(['id', 'id_orang', 'presensi_ms_unit_detail_id']);
+
             
             $unit = Unit::find($targetUnitId);
             $scopeInfo = [
                 'type' => 'specific_unit',
-                'unit' => $unit ? $unit->name : 'Unit ' . $targetUnitId,
+                'unit' => $unit ? $unit->nama : 'Unit ' . $targetUnitId,
                 'unit_id' => $targetUnitId
             ];
         } else {
             return response()->json(['message' => 'Parameter unit_id diperlukan untuk super admin'], 400);
         }
 
-        $noKtps = $pegawais->pluck('no_ktp');
+        $noKtps = $pegawais->pluck('orang.no_ktp');
+
 
         // 1. Total Employees
         $totalPegawai = $pegawais->count();
@@ -394,7 +401,12 @@ class DashboardController extends Controller
      */
     private function getTopEmployees($noKtps, $startDate, $endDate)
     {
-        $pegawais = MsPegawai::whereIn('no_ktp', $noKtps)->get(['id', 'no_ktp', 'nama']);
+        $pegawais = MsPegawai::with('orang:id,no_ktp,nama')
+            ->whereHas('orang', function ($q) use ($noKtps) {
+                $q->whereIn('no_ktp', $noKtps);
+            })
+            ->get(['id', 'id_orang']);
+
 
         $employeeStats = [];
         foreach ($pegawais as $pegawai) {
@@ -409,8 +421,8 @@ class DashboardController extends Controller
             if ($total > 0) {
                 $attendanceRate = round(($hadir / $total) * 100, 2);
                 $employeeStats[] = [
-                    'id' => $pegawai->id,
-                    'nama' => $pegawai->nama,
+                    'id' => $pegawai->orang->id,
+                    'nama' => $pegawai->orang->nama,
                     'hadir' => $hadir,
                     'terlambat' => $terlambat,
                     'total' => $total,
@@ -634,8 +646,12 @@ class DashboardController extends Controller
                 return $unitDetail->pegawaisPresensi->pluck('id');
             });
 
-            $pegawais = MsPegawai::whereIn('id', $pegawaiIds)->get(['no_ktp']);
-            $noKtps = $pegawais->pluck('no_ktp');
+            $pegawais = MsPegawai::with('orang')
+                ->whereIn('id', $pegawaiIds)
+                ->get();
+
+            $noKtps = $pegawais->pluck('orang.no_ktp')->filter()->values();
+
 
             if ($noKtps->count() > 0) {
                 $presensi = Presensi::whereIn('no_ktp', $noKtps)
@@ -678,8 +694,12 @@ class DashboardController extends Controller
                 return $unitDetail->pegawaisPresensi->pluck('id');
             });
 
-            $pegawais = MsPegawai::whereIn('id', $pegawaiIds)->get(['no_ktp']);
-            $noKtps = $pegawais->pluck('no_ktp');
+            $pegawais = MsPegawai::with('orang')
+                ->whereIn('id', $pegawaiIds)
+                ->get();
+
+            $noKtps = $pegawais->pluck('orang.no_ktp')->filter()->values();
+
 
             if ($noKtps->count() > 0) {
                 $presensi = Presensi::whereIn('no_ktp', $noKtps)
