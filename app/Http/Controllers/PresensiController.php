@@ -81,25 +81,25 @@ class PresensiController extends Controller
         ]);
         $now = \Carbon\Carbon::now('Asia/Jakarta');
         $hari = strtolower($now->locale('id')->isoFormat('dddd'));
-        
+
         // Ambil shift_detail pegawai
         $shiftDetail = $pegawai->shiftDetail;
         if (!$shiftDetail) {
             return response()->json(['message' => 'Shift detail tidak ditemukan untuk pegawai ini'], 400);
         }
-        
+
         // Ambil unit_detail dari pegawai
         $unitDetail = $pegawai->unitDetailPresensi;
         if (!$unitDetail) {
             return response()->json(['message' => 'Unit detail tidak ditemukan'], 400);
         }
-        
+
         // Validasi lokasi (point-in-polygon)
         $polygon = $unitDetail->lokasi;
         // if (!$this->isPointInPolygon($request->lokasi, $polygon)) {
         //     return response()->json(['message' => 'Lokasi di luar area'], 400);
         // }
-        
+
         // Cek apakah hari ini adalah hari libur
         $isHariLibur = \App\Models\HariLibur::isHariLibur($unitDetail->id, $now->toDateString());
         if ($isHariLibur) {
@@ -136,34 +136,70 @@ class PresensiController extends Controller
     {
         $statusMasuk = null;
         $keteranganMasuk = null;
-        $waktuMasukUntukSimpan = $now; // Default waktu simpan adalah waktu presensi
+        $waktuMasukUntukSimpan = $now; // Default waktu presensi
         $jam12 = \Carbon\Carbon::createFromTime(12, 0, 0, 'Asia/Jakarta');
 
-        // Jika presensi dilakukan setelah jam 12.00
-        if ($now->greaterThanOrEqualTo($jam12)) {
+        // Ambil jam pulang untuk kebutuhan pulang_awal
+        $jamPulang = $shiftDetail->{$now->locale('id')->isoFormat('dddd') . '_pulang'} ?? null;
+
+        // Jika presensi dilakukan setelah jam 12.00 tapi sebelum jam pulang
+        if ($now->greaterThanOrEqualTo($jam12) && $jamPulang && $now->lessThan(\Carbon\Carbon::createFromFormat('H:i', $jamPulang, 'Asia/Jakarta'))) {
+            // Anggap tidak absen masuk
             $statusMasuk = 'tidak_absen_masuk';
             $keteranganMasuk = 'Tidak absen masuk, sudah lewat jam 12:00';
-            $waktuMasukUntukSimpan = $jam12; // Simpan waktu 12:00, bukan waktu presensi
-        } else {
-            // Validasi waktu masuk
-            if ($jamMasuk) {
-                try {
-                    $waktuMasuk = \Carbon\Carbon::createFromFormat('H:i', $jamMasuk, 'Asia/Jakarta');
-                    $batasMasuk = $waktuMasuk->copy()->addMinutes($tolMasuk);
-                    
-                    if ($now->lessThan($waktuMasuk)) {
-                        return response()->json(['message' => 'Belum waktunya absen masuk'], 400);
-                    }
-                    
-                    if ($now->between($waktuMasuk, $batasMasuk)) {
-                        $statusMasuk = 'absen_masuk';
-                    } elseif ($now->greaterThan($batasMasuk) && $now->lessThan($jam12)) {
-                        $statusMasuk = 'terlambat';
-                        $keteranganMasuk = 'Terlambat absen masuk';
-                    }
-                } catch (\Exception $e) {
-                    return response()->json(['message' => 'Format jam masuk tidak valid'], 400);
+            $waktuMasukUntukSimpan = $jam12;
+
+            // Simpan presensi dengan status masuk gagal
+            $presensi = Presensi::create([
+                'no_ktp' => $pegawai->no_ktp,
+                'shift_id' => $shiftDetail->shift_id,
+                'shift_detail_id' => $shiftDetail->id,
+                'waktu_masuk' => $waktuMasukUntukSimpan,
+                'status_masuk' => $statusMasuk,
+                'lokasi_masuk' => $request->lokasi,
+                'keterangan_masuk' => $keteranganMasuk,
+                'status_presensi' => 'tidak_hadir',
+            ]);
+
+            // Otomatis dianggap langsung absen pulang (pulang_awal)
+            $presensi->update([
+                'waktu_pulang' => $now,
+                'status_pulang' => 'pulang_awal',
+                'lokasi_pulang' => $request->lokasi,
+                'keterangan_pulang' => 'Absen pulang setelah jam 12 tanpa absen masuk',
+                'status_presensi' => 'tidak_hadir',
+            ]);
+
+            return response()->json([
+                'no_ktp' => $presensi->no_ktp,
+                'shift_detail_id' => $presensi->shift_detail_id,
+                'tanggal' => $presensi->waktu_masuk->format('Y-m-d'),
+                'waktu_masuk' => $presensi->waktu_masuk->format('H:i:s'),
+                'status_masuk' => $presensi->status_masuk,
+                'waktu_pulang' => $presensi->waktu_pulang->format('H:i:s'),
+                'status_pulang' => $presensi->status_pulang,
+                'keterangan' => $presensi->keterangan_pulang,
+            ]);
+        }
+
+        // --- logika normal absen masuk ---
+        if ($jamMasuk) {
+            try {
+                $waktuMasuk = \Carbon\Carbon::createFromFormat('H:i', $jamMasuk, 'Asia/Jakarta');
+                $batasMasuk = $waktuMasuk->copy()->addMinutes($tolMasuk);
+
+                // if ($now->lessThan($waktuMasuk)) {
+                //     return response()->json(['message' => 'Belum waktunya absen masuk'], 400);
+                // }
+
+                if ($now->between($waktuMasuk, $batasMasuk)) {
+                    $statusMasuk = 'absen_masuk';
+                } elseif ($now->greaterThan($batasMasuk) && $now->lessThan($jam12)) {
+                    $statusMasuk = 'terlambat';
+                    $keteranganMasuk = 'Terlambat absen masuk';
                 }
+            } catch (\Exception $e) {
+                return response()->json(['message' => 'Format jam masuk tidak valid'], 400);
             }
         }
 
@@ -172,48 +208,39 @@ class PresensiController extends Controller
             $keteranganMasuk = 'Tidak absen masuk';
         }
 
-        // Simpan presensi masuk
-            $presensi = Presensi::create([
-                'no_ktp' => $pegawai->no_ktp,
-                'shift_id' => $shiftDetail->shift_id,
-                'shift_detail_id' => $shiftDetail->id,
-            'waktu_masuk' => $waktuMasukUntukSimpan, // Gunakan waktu yang sudah ditentukan
+        // Simpan presensi masuk normal
+        $presensi = Presensi::create([
+            'no_ktp' => $pegawai->no_ktp,
+            'shift_id' => $shiftDetail->shift_id,
+            'shift_detail_id' => $shiftDetail->id,
+            'waktu_masuk' => $waktuMasukUntukSimpan,
             'status_masuk' => $statusMasuk,
             'lokasi_masuk' => $request->lokasi,
             'keterangan_masuk' => $keteranganMasuk,
-            'status_presensi' => in_array($statusMasuk, ['absen_masuk', 'terlambat']) ? 'hadir' : 'tidak_hadir',
-            // Backward compatibility - tetap isi kolom lama
-            //'waktu' => $waktuMasukUntukSimpan,
-            //'status' => $statusMasuk,
-            //    'lokasi' => $request->lokasi,
-            //'keterangan' => $keteranganMasuk,
-            ]);
+            'status_presensi' => in_array($statusMasuk, ['absen_masuk', 'terlambat']) ? 'hadir' : 'hadir',
+        ]);
 
-            if ($pegawai->pegawai->profesi == 'driver') {
-                $presensi->update([
-                    'waktu_pulang' => $now,
-                    'status_pulang' => 'absen_pulang',
-                    'lokasi_pulang' => $request->lokasi,
-                    'keterangan_pulang' => 'Absen pulang tepat waktu',
-                    'status_presensi' => 'hadir',
-                ]);
-            }
-
-            $shift_name = $shiftDetail->shift ? $shiftDetail->shift->name : null;
-            return response()->json([
-                'no_ktp' => $presensi->no_ktp,
-                'shift_name' => $shift_name,
-                'shift_detail_id' => $presensi->shift_detail_id,
-            'tanggal' => $presensi->waktu_masuk->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d'),
-            'waktu' => $presensi->waktu_masuk->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s'),
-            'status' => $presensi->status_masuk,
-            'lokasi' => $presensi->lokasi_masuk,
-            'keterangan' => $presensi->keterangan_masuk,
-                'updated_at' => $presensi->updated_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
-                'created_at' => $presensi->created_at->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('Y-m-d H:i:s'),
-                'id' => $presensi->id,
+        // Jika profesi driver → sekali absen langsung pulang
+        if ($pegawai->pegawai->profesi == 'driver') {
+            $presensi->update([
+                'waktu_pulang' => $now,
+                'status_pulang' => 'absen_pulang',
+                'lokasi_pulang' => $request->lokasi,
+                'keterangan_pulang' => 'Driver otomatis absen pulang',
+                'status_presensi' => 'hadir',
             ]);
         }
+
+        return response()->json([
+            'no_ktp' => $presensi->no_ktp,
+            'shift_detail_id' => $presensi->shift_detail_id,
+            'tanggal' => $presensi->waktu_masuk->format('Y-m-d'),
+            'waktu' => $presensi->waktu_masuk->format('H:i:s'),
+            'status' => $presensi->status_masuk,
+            'keterangan' => $presensi->keterangan_masuk,
+        ]);
+    }
+
 
     private function handlePresensiPulang(Request $request, $presensi, $now, $shiftDetail, $jamPulang, $tolPulang)
     {
@@ -225,11 +252,11 @@ class PresensiController extends Controller
             try {
                 $waktuPulang = \Carbon\Carbon::createFromFormat('H:i', $jamPulang, 'Asia/Jakarta');
                 $batasAwalPulang = $waktuPulang->copy()->subMinutes($tolPulang); // Jam 16:55 jika pulang 17:00, toleransi 5 menit
-                
-                if ($now->lessThan($batasAwalPulang)) {
-                    return response()->json(['message' => 'Belum waktunya absen pulang'], 400);
-                }
-                
+
+                // if ($now->lessThan($batasAwalPulang)) {
+                //     return response()->json(['message' => 'Belum waktunya absen pulang'], 400);
+                // }
+
                 // Logic yang benar:
                 // - Jika pulang sebelum batas awal (16:55) = pulang_awal
                 // - Jika pulang antara batas awal (16:55) sampai waktu pulang (17:00) = absen_pulang
@@ -287,10 +314,10 @@ class PresensiController extends Controller
     {
         // Status yang dianggap hadir
         $hadirStatuses = \App\Models\Presensi::getHadirStatuses();
-        
+
         // Status khusus yang tidak dihitung sebagai hadir
         $specialStatuses = \App\Models\Presensi::getSpecialStatuses();
-        
+
         // Jika ada status khusus, gunakan status tersebut
         if (in_array($statusMasuk, $specialStatuses)) {
             return $statusMasuk;
@@ -298,12 +325,12 @@ class PresensiController extends Controller
         if (in_array($statusPulang, $specialStatuses)) {
             return $statusPulang;
         }
-        
+
         // Jika salah satu hadir, maka status akhir adalah hadir
         if (in_array($statusMasuk, $hadirStatuses) || in_array($statusPulang, $hadirStatuses)) {
             return \App\Models\Presensi::STATUS_PRESENSI_HADIR;
         }
-        
+
         return \App\Models\Presensi::STATUS_PRESENSI_TIDAK_HADIR;
     }
 
@@ -321,12 +348,12 @@ class PresensiController extends Controller
             return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
         }
         $today = \Carbon\Carbon::now('Asia/Jakarta')->toDateString();
-        
+
         // Menggunakan format baru - 1 row per hari
         $presensi = Presensi::where('no_ktp', $pegawai->no_ktp)
             ->whereDate('waktu_masuk', $today)
             ->first();
-            
+
         return response()->json([
             'tanggal' => $today,
             'jam_masuk' => $presensi ? $presensi->waktu_masuk?->setTimezone(new \DateTimeZone('Asia/Jakarta'))->format('H:i:s') : null,
@@ -358,7 +385,7 @@ class PresensiController extends Controller
             $presensi = Presensi::where('no_ktp', $pegawai->no_ktp)
                 ->whereDate('waktu_masuk', $tanggal)
                 ->first();
-                
+
             return response()->json([
                 'hari' => \Carbon\Carbon::parse($tanggal)->locale('id')->isoFormat('dddd'),
                 'tanggal' => $tanggal,
@@ -369,16 +396,16 @@ class PresensiController extends Controller
                 'status_presensi' => $presensi ? $presensi->status_presensi : null,
             ]);
         }
-        
+
         $from = $request->query('from', \Carbon\Carbon::now('Asia/Jakarta')->startOfMonth()->toDateString());
         $to = $request->query('to', \Carbon\Carbon::now('Asia/Jakarta')->toDateString());
-        
+
         // Menggunakan format baru - 1 row per hari
         $presensi = Presensi::where('no_ktp', $pegawai->no_ktp)
             ->whereBetween('waktu_masuk', [$from . ' 00:00:00', $to . ' 23:59:59'])
             ->orderBy('waktu_masuk')
             ->get();
-            
+
         $history = [];
         foreach ($presensi as $p) {
             $history[] = [
@@ -473,8 +500,8 @@ class PresensiController extends Controller
 
         $tanggal = $request->query('tanggal', Carbon::today()->toDateString());
         $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
-                $q->where('presensi_ms_unit_detail_id', $unitId);
-            })
+            $q->where('presensi_ms_unit_detail_id', $unitId);
+        })
             ->with('orang:id,no_ktp,nama') // ambil no_ktp & nama dari ms_orang
             ->get(['id', 'id_orang']); // ambil id + fk saja
 
@@ -505,7 +532,7 @@ class PresensiController extends Controller
                 'waktu_masuk'      => $p->waktu_masuk,
                 'waktu_pulang'     => $p->waktu_pulang,
                 'keterangan_masuk' => $p->keterangan_masuk,
-                'keterangan_pulang'=> $p->keterangan_pulang,
+                'keterangan_pulang' => $p->keterangan_pulang,
                 'created_at'       => $p->created_at,
                 'updated_at'       => $p->updated_at,
             ];
@@ -514,138 +541,138 @@ class PresensiController extends Controller
         return response()->json($result);
     }
 
-       /**
+    /**
      * Rekap history presensi pegawai per bulan (pegawai yang login)
      */
     public function rekapHistoryBulananPegawai(Request $request)
-{
-    $pegawai = $request->get('pegawai');
-    $pegawai->load([
-        'pegawai.shiftDetail.shift',
-        'pegawai.unitDetailPresensi.unit',
-        'pegawai'
-    ]);
-    if (!$pegawai) {
-        return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
-    }
-
-    $bulan = $request->query('bulan', now('Asia/Jakarta')->month);
-    $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
-
-    // Ambil semua tanggal di bulan tsb
-    $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
-    $end = $start->copy()->endOfMonth();
-
-    $tanggalList = [];
-    for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-        $tanggalList[] = $date->format('Y-m-d');
-    }
-
-    // Ambil presensi pegawai di bulan tsb
-    $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
-        ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
-        ->orderBy('waktu_masuk')
-        ->get();
-
-    // Ambil pengajuan izin, cuti, sakit
-    $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
-        ->where('status', 'diterima')
-        ->where(function ($q) use ($start, $end) {
-            $q->whereBetween('tanggal_mulai', [$start, $end])
-                ->orWhereBetween('tanggal_selesai', [$start, $end]);
-        })->get();
-
-    $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
-        ->where('status', 'diterima')
-        ->where(function ($q) use ($start, $end) {
-            $q->whereBetween('tanggal_mulai', [$start, $end])
-                ->orWhereBetween('tanggal_selesai', [$start, $end]);
-        })->get();
-
-    $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
-        ->where('status', 'diterima')
-        ->where(function ($q) use ($start, $end) {
-            $q->whereBetween('tanggal_mulai', [$start, $end])
-                ->orWhereBetween('tanggal_selesai', [$start, $end]);
-        })->get();
-
-    // Inisialisasi result
-    $result = [
-        'hadir' => 0,
-        'izin' => 0,
-        'sakit' => 0,
-        'cuti' => 0,
-        'tidak_hadir' => 0,
-        'belum_presensi' => 0,
-        'tanggal_hadir' => [],
-        'tanggal_izin' => [],
-        'tanggal_sakit' => [],
-        'tanggal_cuti' => [],
-        'tanggal_tidak_hadir' => [],
-        'tanggal_belum_presensi' => [],
-        'bulan' => (string)$bulan,
-        'tahun' => (string)$tahun
-    ];
-
-    foreach ($tanggalList as $tanggal) {
-        $status = null;
-
-        // Cek presensi (safe null check)
-        $presensiHari = $presensi->filter(function ($p) use ($tanggal) {
-            return $p->waktu_masuk && \Carbon\Carbon::parse($p->waktu_masuk)->format('Y-m-d') === $tanggal;
-        });
-
-        if ($presensiHari->count()) {
-            if ($presensiHari->whereIn('status_presensi', ['hadir', 'dinas'])->count()) {
-                $status = 'hadir';
-            } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
-                $status = 'tidak_hadir';
-            }
+    {
+        $pegawai = $request->get('pegawai');
+        $pegawai->load([
+            'pegawai.shiftDetail.shift',
+            'pegawai.unitDetailPresensi.unit',
+            'pegawai'
+        ]);
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
         }
 
-        // Cek izin
-        if (!$status || $status === 'tidak_hadir') {
-            foreach ($izin as $i) {
-                if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
-                    $status = 'izin';
-                    break;
+        $bulan = $request->query('bulan', now('Asia/Jakarta')->month);
+        $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
+
+        // Ambil semua tanggal di bulan tsb
+        $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
+        $end = $start->copy()->endOfMonth();
+
+        $tanggalList = [];
+        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            $tanggalList[] = $date->format('Y-m-d');
+        }
+
+        // Ambil presensi pegawai di bulan tsb
+        $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
+            ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+            ->orderBy('waktu_masuk')
+            ->get();
+
+        // Ambil pengajuan izin, cuti, sakit
+        $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+
+        $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+
+        $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+
+        // Inisialisasi result
+        $result = [
+            'hadir' => 0,
+            'izin' => 0,
+            'sakit' => 0,
+            'cuti' => 0,
+            'tidak_hadir' => 0,
+            'belum_presensi' => 0,
+            'tanggal_hadir' => [],
+            'tanggal_izin' => [],
+            'tanggal_sakit' => [],
+            'tanggal_cuti' => [],
+            'tanggal_tidak_hadir' => [],
+            'tanggal_belum_presensi' => [],
+            'bulan' => (string)$bulan,
+            'tahun' => (string)$tahun
+        ];
+
+        foreach ($tanggalList as $tanggal) {
+            $status = null;
+
+            // Cek presensi (safe null check)
+            $presensiHari = $presensi->filter(function ($p) use ($tanggal) {
+                return $p->waktu_masuk && \Carbon\Carbon::parse($p->waktu_masuk)->format('Y-m-d') === $tanggal;
+            });
+
+            if ($presensiHari->count()) {
+                if ($presensiHari->whereIn('status_presensi', ['hadir', 'dinas'])->count()) {
+                    $status = 'hadir';
+                } elseif ($presensiHari->where('status_presensi', 'tidak_hadir')->count()) {
+                    $status = 'tidak_hadir';
                 }
             }
-        }
 
-        // Cek cuti
-        if (!$status || $status === 'tidak_hadir') {
-            foreach ($cuti as $c) {
-                if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
-                    $status = 'cuti';
-                    break;
+            // Cek izin
+            if (!$status || $status === 'tidak_hadir') {
+                foreach ($izin as $i) {
+                    if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
+                        $status = 'izin';
+                        break;
+                    }
                 }
             }
-        }
 
-        // Cek sakit
-        if (!$status || $status === 'tidak_hadir') {
-            foreach ($sakit as $s) {
-                if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
-                    $status = 'sakit';
-                    break;
+            // Cek cuti
+            if (!$status || $status === 'tidak_hadir') {
+                foreach ($cuti as $c) {
+                    if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
+                        $status = 'cuti';
+                        break;
+                    }
                 }
             }
+
+            // Cek sakit
+            if (!$status || $status === 'tidak_hadir') {
+                foreach ($sakit as $s) {
+                    if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
+                        $status = 'sakit';
+                        break;
+                    }
+                }
+            }
+
+            if (!$status) {
+                $status = 'belum_presensi';
+            }
+
+            // Hitung jumlah & simpan tanggal
+            if (isset($result[$status])) {
+                $result[$status]++;
+            }
+            $result['tanggal_' . $status][] = \Carbon\Carbon::parse($tanggal)->format('d');
         }
 
-        if (!$status) {
-            $status = 'belum_presensi';
-        }
-
-        // Hitung jumlah & simpan tanggal
-        if (isset($result[$status])) {
-            $result[$status]++;
-        }
-        $result['tanggal_' . $status][] = \Carbon\Carbon::parse($tanggal)->format('d');
+        return response()->json($result);
     }
-
-    return response()->json($result);
-}
 
 
     /**
@@ -725,10 +752,10 @@ class PresensiController extends Controller
 
             // Ambil unit detail name
             $unitDetailName = null;
-        if ($pegawai->presensi_ms_unit_detail_id) {
-            $unitDetail = \App\Models\UnitDetail::find($pegawai->presensi_ms_unit_detail_id);
-            $unitDetailName = $unitDetail?->nama;
-        }
+            if ($pegawai->presensi_ms_unit_detail_id) {
+                $unitDetail = \App\Models\UnitDetail::find($pegawai->presensi_ms_unit_detail_id);
+                $unitDetailName = $unitDetail?->nama;
+            }
 
 
             $result[] = [
@@ -758,12 +785,12 @@ class PresensiController extends Controller
         if (!$pegawai_id || !$tanggal || !is_array($updates)) {
             return response()->json(['message' => 'pegawai_id, tanggal, dan updates wajib diisi'], 422);
         }
-        
+
         // Validasi format tanggal
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
             return response()->json(['message' => 'Format tanggal tidak valid. Gunakan format YYYY-MM-DD'], 422);
         }
-        $pegawai = MsPegawai::with('orang')->where('id', $pegawai_id)->firstOrFail(); 
+        $pegawai = MsPegawai::with('orang')->where('id', $pegawai_id)->firstOrFail();
 
         // Get unit_id using helper
         $unitResult = AdminUnitHelper::getUnitId($request);
@@ -790,17 +817,17 @@ class PresensiController extends Controller
             $statusPulang = $update['status_pulang'] ?? null;
             $waktuMasuk = $update['waktu_masuk'] ?? null;
             $waktuPulang = $update['waktu_pulang'] ?? null;
-            
+
             // Validasi status masuk
             if ($statusMasuk && !\App\Models\Presensi::isValidStatusMasuk($statusMasuk)) {
                 return response()->json(['message' => 'Status masuk tidak valid'], 422);
             }
-            
+
             // Validasi status pulang
             if ($statusPulang && !\App\Models\Presensi::isValidStatusPulang($statusPulang)) {
                 return response()->json(['message' => 'Status pulang tidak valid'], 422);
             }
-            
+
             // Konversi input waktu jika dalam format jam (HH:mm)
             if ($waktuMasuk && !str_contains($waktuMasuk, '-') && !str_contains($waktuMasuk, 'T')) {
                 // Validasi format jam (HH:mm)
@@ -809,7 +836,7 @@ class PresensiController extends Controller
                 }
                 $waktuMasuk = $tanggal . ' ' . $waktuMasuk . ':00';
             }
-            
+
             if ($waktuPulang && !str_contains($waktuPulang, '-') && !str_contains($waktuPulang, 'T')) {
                 // Validasi format jam (HH:mm)
                 if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $waktuPulang)) {
@@ -817,17 +844,17 @@ class PresensiController extends Controller
                 }
                 $waktuPulang = $tanggal . ' ' . $waktuPulang . ':00';
             }
-            
+
             // Validasi logika waktu (waktu pulang harus setelah waktu masuk)
             if ($waktuMasuk && $waktuPulang) {
                 $waktuMasukObj = \Carbon\Carbon::parse($waktuMasuk);
                 $waktuPulangObj = \Carbon\Carbon::parse($waktuPulang);
-                
+
                 if ($waktuPulangObj->lte($waktuMasukObj)) {
                     return response()->json(['message' => 'Waktu pulang harus setelah waktu masuk'], 422);
                 }
             }
-            
+
             // Update presensi dengan data baru
             $updateData = array_filter([
                 'status_masuk' => $statusMasuk,
@@ -840,7 +867,7 @@ class PresensiController extends Controller
                 'keterangan_pulang' => $update['keterangan_pulang'] ?? null,
                 'status_presensi' => $update['status_presensi'] ?? null,
             ], fn($v) => $v !== null);
-            
+
             // Recalculate status_presensi jika ada perubahan status
             if ($statusMasuk || $statusPulang) {
                 $updateData['status_presensi'] = $this->calculateFinalStatus(
@@ -848,7 +875,7 @@ class PresensiController extends Controller
                     $statusPulang ?? $presensi->status_pulang
                 );
             }
-            
+
             $presensi->update($updateData);
             $updated[] = $presensi;
         }
@@ -1059,7 +1086,7 @@ class PresensiController extends Controller
                         }
                     }
                 }
-                if (!$status || $status === 'tidak_hadir' ) {
+                if (!$status || $status === 'tidak_hadir') {
                     foreach ($cuti as $c) {
                         if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
                             $status = 'cuti';
@@ -1149,7 +1176,7 @@ class PresensiController extends Controller
         $hari = strtolower($presensi->waktu_masuk->locale('id')->isoFormat('dddd'));
         $jamMasukKey = $hari . '_masuk';
         $jamMasukShift = $shiftDetail->$jamMasukKey;
-        
+
         if (!$jamMasukShift) {
             return $laukPaukUnit->pot_terlambat_0806_0900; // Default penalty
         }
@@ -1158,13 +1185,13 @@ class PresensiController extends Controller
         $jamMasukCarbon = \Carbon\Carbon::createFromFormat('H:i', $jamMasukShift, 'Asia/Jakarta');
         $toleransi = $shiftDetail->toleransi_terlambat ?? 0;
         $batasTidakTerlambat = $jamMasukCarbon->copy()->addMinutes($toleransi);
-        
+
         // Hitung waktu masuk pegawai
         $waktuMasukPegawai = $presensi->waktu_masuk;
-        
+
         // Hitung selisih keterlambatan dalam menit
         $terlambatMenit = $waktuMasukPegawai->diffInMinutes($batasTidakTerlambat);
-        
+
         // Mapping ke kategori potongan berdasarkan menit keterlambatan
         if ($terlambatMenit <= 54) {
             return $laukPaukUnit->pot_terlambat_0806_0900;
@@ -1200,8 +1227,8 @@ class PresensiController extends Controller
         }
         $result = [];
         $pegawais = \App\Models\MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
-                $q->where('presensi_ms_unit_detail_id', $unitId);
-            })
+            $q->where('presensi_ms_unit_detail_id', $unitId);
+        })
             ->with(['unitDetailPresensi', 'orang'])
             ->get();
 
@@ -1308,7 +1335,7 @@ class PresensiController extends Controller
             $jumlahPulangAwal = $presensi->where('status_pulang', 'pulang_awal')->count();
             $jumlahJamDatangKosong = $presensi->whereIn('status_masuk', ['tidak_absen_masuk'])->count();
             $jumlahJamPulangKosong = $presensi->whereIn('status_pulang', ['tidak_absen_pulang'])->count();
-            
+
             // Hitung total potongan penalty
             $totalPotongan = 0;
             foreach ($presensi as $p) {
@@ -1319,10 +1346,10 @@ class PresensiController extends Controller
             $nominalPerhari = $hariEfektif > 0 ? $nominalLaukPauk / $hariEfektif : 0;
 
             $potonganDinas = $jumlahDinas * $nominalPerhari;
-            
+
             // Hitung nominal lauk pauk setelah potongan (hanya untuk perhitungan internal)
             $nominalLaukPaukSetelahPotongan = max(0, $nominalLaukPauk - $totalPotongan - $potonganDinas);
-            
+
             $result[] = [
                 'no' => $no++,
                 'nik' => $pegawai->orang->no_ktp,
@@ -1361,16 +1388,16 @@ class PresensiController extends Controller
         // Generate tanggal range
         $start = \Carbon\Carbon::parse($tanggal_mulai);
         $end = \Carbon\Carbon::parse($tanggal_selesai);
-        
+
         // Loop setiap tanggal dalam range
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $tanggal = $date->format('Y-m-d');
-            
+
             // Cek apakah sudah ada presensi di tanggal tersebut
             $existingPresensi = Presensi::where('no_ktp', $pegawai->no_ktp)
                 ->whereDate('waktu_masuk', $tanggal)
                 ->first();
-            
+
             if ($existingPresensi) {
                 // Update presensi yang sudah ada
                 $existingPresensi->update([
@@ -1397,7 +1424,7 @@ class PresensiController extends Controller
                 ]);
             }
         }
-        
+
         return true;
     }
 
@@ -1413,14 +1440,14 @@ class PresensiController extends Controller
 
         $start = \Carbon\Carbon::parse($tanggal_mulai);
         $end = \Carbon\Carbon::parse($tanggal_selesai);
-        
+
         // Hapus presensi yang dibuat dari pengajuan
         Presensi::where('no_ktp', $pegawai->no_ktp)
             ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
             ->where('status_masuk', $jenis_pengajuan)
             ->where('keterangan_masuk', 'like', "Pengajuan {$jenis_pengajuan} yang disetujui%")
             ->delete();
-            
+
         return true;
     }
 
@@ -1483,8 +1510,6 @@ class PresensiController extends Controller
                 } elseif ($jamMasuk->greaterThan($jamKerjaMasuk)) {
                     $menitTelat = $jamKerjaMasuk->diffInMinutes($jamMasuk);
                 }
-
-
             }
 
             // Hitung pulang cepat / lembur
@@ -1496,7 +1521,6 @@ class PresensiController extends Controller
                 } elseif ($jamKeluar->greaterThan($jamKerjaPulang)) {
                     $menitLembur = $jamKerjaPulang->diffInMinutes($jamKeluar);
                 }
-
             }
 
 
@@ -1526,13 +1550,30 @@ class PresensiController extends Controller
                 'alasan' => $p->keterangan_masuk ?: ($p->keterangan_pulang ?: ''),
             ];
         }
+        $upk = DB::selectOne("
+                SELECT 
+                    CASE
+                        WHEN oyg.id IS NOT NULL
+                        AND oyg.aktif = 1 THEN oy.nama
+                        ELSE upk.nama
+                    END AS upk
+                FROM ms_pegawai
+                LEFT JOIN ms_unit upk ON ms_pegawai.id_upk = upk.id
+                LEFT JOIN organ_yayasan_anggota oyg ON oyg.id_orang = ms_pegawai.id_orang
+                LEFT JOIN organ_yayasan_jabatan oyj ON oyj.id = oyg.id_organ_jabatan
+                LEFT JOIN organ_yayasan oy ON oy.id = oyj.id_organ
+                WHERE ms_pegawai.id_orang = ?
+                LIMIT 1
+            ", [$pegawai->id_orang]);
+
+        $upkName = $upk ? $upk->upk : null;
 
         return response()->json([
             'pegawai' => [
                 'no_ktp' => $pegawai->orang->no_ktp,
                 'nama' => $pegawai->orang->nama,
                 'unit_kerja' => $pegawai->unit ? $pegawai->unit->nama : null,
-                'jabatan' => $pegawai->profesi
+                'jabatan' => $upkName,
             ],
             'periode' => [
                 'bulan' => $bulan,
@@ -1542,186 +1583,186 @@ class PresensiController extends Controller
         ]);
     }
 
-public function getOvertimePegawai(Request $request)
-{
-    $admin = $request->get('admin');
-    if (!$admin) {
-        return response()->json(['message' => 'Admin tidak ditemukan'], 401);
-    }
+    public function getOvertimePegawai(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
 
-    $unitResult = AdminUnitHelper::getUnitId($request);
-    if ($unitResult['error']) {
-        return response()->json(['message' => $unitResult['error']], 400);
-    }
-    $unitId = $unitResult['unit_id'];
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
 
-    $bulan = $request->query('bulan');
-    $tahun = $request->query('tahun');
+        $bulan = $request->query('bulan');
+        $tahun = $request->query('tahun');
 
-    $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
+        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
             $q->where('presensi_ms_unit_detail_id', $unitId);
         })
-        ->whereHas('orang.presensi', function ($q) use ($bulan, $tahun) {
-            if ($bulan) {
-                $q->whereMonth('waktu_pulang', $bulan);
-            }
-            if ($tahun) {
-                $q->whereYear('waktu_pulang', $tahun);
-            }
-            $q->where('overtime', 1);
-        })
-        ->with([
-            'unitDetailPresensi.unit',
-            'orang.presensi' => function ($q) use ($bulan, $tahun) {
+            ->whereHas('orang.presensi', function ($q) use ($bulan, $tahun) {
                 if ($bulan) {
                     $q->whereMonth('waktu_pulang', $bulan);
                 }
                 if ($tahun) {
                     $q->whereYear('waktu_pulang', $tahun);
                 }
-                $q->where('overtime', 1)
-                  ->with('shiftDetail')
-                  ->orderBy('waktu_pulang', 'desc');
-            }
-        ])
-        ->with('orang:id,no_ktp,nama')
-        ->get();
+                $q->where('overtime', 1);
+            })
+            ->with([
+                'unitDetailPresensi.unit',
+                'orang.presensi' => function ($q) use ($bulan, $tahun) {
+                    if ($bulan) {
+                        $q->whereMonth('waktu_pulang', $bulan);
+                    }
+                    if ($tahun) {
+                        $q->whereYear('waktu_pulang', $tahun);
+                    }
+                    $q->where('overtime', 1)
+                        ->with('shiftDetail')
+                        ->orderBy('waktu_pulang', 'desc');
+                }
+            ])
+            ->with('orang:id,no_ktp,nama')
+            ->get();
 
-    $result = collect();
+        $result = collect();
 
-    foreach ($pegawais as $pegawai) {
-        foreach ($pegawai->orang->presensi as $p) {
-            $waktuPulang = \Carbon\Carbon::parse($p->waktu_pulang);
+        foreach ($pegawais as $pegawai) {
+            foreach ($pegawai->orang->presensi as $p) {
+                $waktuPulang = \Carbon\Carbon::parse($p->waktu_pulang);
 
-            $mapHari = [
-                'monday' => 'senin',
-                'tuesday' => 'selasa',
-                'wednesday' => 'rabu',
-                'thursday' => 'kamis',
-                'friday' => 'jumat',
-                'saturday' => 'sabtu',
-                'sunday' => 'minggu'
-            ];
-            $hariKey = $mapHari[strtolower($waktuPulang->format('l'))] ?? null;
-
-            $jamPulangShift = null;
-            if ($p->shiftDetail && $hariKey && isset($p->shiftDetail->{$hariKey . '_pulang'})) {
-                $shiftTime = $p->shiftDetail->{$hariKey . '_pulang'}; // misal "17:00"
-                $jamPulangShift = $waktuPulang->copy()->setTimeFromTimeString($shiftTime);
-            }
-
-            $menitOvertime = 0;
-            if ($jamPulangShift && $waktuPulang->gt($jamPulangShift)) {
-                $menitOvertime = $jamPulangShift->diffInMinutes($waktuPulang);
-            }
-
-            $result->push([
-                'no_ktp' => $pegawai->orang->no_ktp,
-                'nama' => $pegawai->orang->nama,
-                'unit_detail' => $pegawai->unitDetailPresensi->unit->nama ?? null,
-                'tanggal' => $waktuPulang->format('Y-m-d'),
-                'waktu_masuk' => $p->waktu_masuk ? \Carbon\Carbon::parse($p->waktu_masuk)->format('H:i') : null,
-                'waktu_pulang' => $waktuPulang->format('H:i'),
-                'menit_overtime' => $menitOvertime
-            ]);
-        }
-    }
-    
-
-    return response()->json($result->values());
-}
-
-        public function adminPresensiPegawai(Request $request)
-{
-    $admin = $request->get('admin');
-    if (!$admin) {
-        return response()->json(['message' => 'Admin tidak ditemukan'], 401);
-    }
-
-    $request->validate([
-        'tanggal' => 'required|date',
-        'keterangan' => 'nullable|string|max:255',
-        'pegawai_ids' => 'required|array',
-        'pegawai_ids.*' => 'exists:ms_pegawai,id',
-    ]);
-
-    $pegawais = MsPegawai::with('shiftDetail', 'orang')
-        ->whereIn('id', $request->pegawai_ids)
-        ->get();
-
-    if ($pegawais->isEmpty()) {
-        return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
-    }
-
-    $createdPresensi = [];
-    $errors = [];
-
-    $start = Carbon::parse($request->tanggal_mulai);
-    $end = Carbon::parse($request->tanggal_selesai);
-
-    foreach ($pegawais as $pegawai) {
-        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-            $tanggal = $date->format('Y-m-d');
-
-            // Cek duplikat presensi
-            $existingPresensi = Presensi::where('no_ktp', $pegawai->orang->no_ktp ?? null)
-                ->whereDate('waktu_masuk', $tanggal)
-                ->first();
-
-            if ($existingPresensi) {
-                $errors[] = "Pegawai {$pegawai->orang->nama} sudah memiliki presensi pada tanggal {$tanggal}";
-                continue;
-            }
-
-            $shiftDetail = $pegawai->shiftDetail;
-            if (!$shiftDetail) {
-                $errors[] = "Pegawai {$pegawai->orang->nama} tidak memiliki shift detail";
-                continue;
-            }
-
-            $waktuMasuk = $this->getWaktuMasukShift($shiftDetail, $date);
-            $waktuPulang = $this->getWaktuPulangShift($shiftDetail, $date);
-
-            if (!$waktuMasuk || !$waktuPulang) {
-                $errors[] = "Pegawai {$pegawai->orang->nama} tidak memiliki jam kerja pada hari " . $date->locale('id')->isoFormat('dddd');
-                continue;
-            }
-
-            try {
-                $presensi = Presensi::create([
-                    'no_ktp' => $pegawai->orang->no_ktp,
-                    'shift_id' => $shiftDetail->shift_id,
-                    'shift_detail_id' => $shiftDetail->id,
-                    'waktu_masuk' => $waktuMasuk,
-                    'waktu_pulang' => $waktuPulang,
-                    'status_masuk' => 'absen_masuk',
-                    'status_pulang' => 'absen_pulang',
-                    'lokasi_masuk' => null,
-                    'lokasi_pulang' => null,
-                    'keterangan_masuk' => $request->keterangan,
-                    'keterangan_pulang' => $request->keterangan,
-                    'status_presensi' => 'hadir',
-                ]);
-
-                $createdPresensi[] = [
-                    'pegawai' => $pegawai->orang->nama,
-                    'tanggal' => $tanggal,
-                    'presensi_id' => $presensi->id,
+                $mapHari = [
+                    'monday' => 'senin',
+                    'tuesday' => 'selasa',
+                    'wednesday' => 'rabu',
+                    'thursday' => 'kamis',
+                    'friday' => 'jumat',
+                    'saturday' => 'sabtu',
+                    'sunday' => 'minggu'
                 ];
-            } catch (\Exception $e) {
-                $errors[] = "Gagal membuat presensi untuk pegawai {$pegawai->orang->nama} pada tanggal {$tanggal}: " . $e->getMessage();
+                $hariKey = $mapHari[strtolower($waktuPulang->format('l'))] ?? null;
+
+                $jamPulangShift = null;
+                if ($p->shiftDetail && $hariKey && isset($p->shiftDetail->{$hariKey . '_pulang'})) {
+                    $shiftTime = $p->shiftDetail->{$hariKey . '_pulang'}; // misal "17:00"
+                    $jamPulangShift = $waktuPulang->copy()->setTimeFromTimeString($shiftTime);
+                }
+
+                $menitOvertime = 0;
+                if ($jamPulangShift && $waktuPulang->gt($jamPulangShift)) {
+                    $menitOvertime = $jamPulangShift->diffInMinutes($waktuPulang);
+                }
+
+                $result->push([
+                    'no_ktp' => $pegawai->orang->no_ktp,
+                    'nama' => $pegawai->orang->nama,
+                    'unit_detail' => $pegawai->unitDetailPresensi->unit->nama ?? null,
+                    'tanggal' => $waktuPulang->format('Y-m-d'),
+                    'waktu_masuk' => $p->waktu_masuk ? \Carbon\Carbon::parse($p->waktu_masuk)->format('H:i') : null,
+                    'waktu_pulang' => $waktuPulang->format('H:i'),
+                    'menit_overtime' => $menitOvertime
+                ]);
             }
         }
+
+
+        return response()->json($result->values());
     }
 
-    return response()->json([
-        'message' => 'Berhasil Mempresensikan pegawai',
-        'created_count' => count($createdPresensi),
-        'error_count' => count($errors),
-        'created_data' => $createdPresensi,
-        'errors' => $errors,
-    ]);
-}
+    public function adminPresensiPegawai(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
+
+        $request->validate([
+            'tanggal' => 'required|date',
+            'keterangan' => 'nullable|string|max:255',
+            'pegawai_ids' => 'required|array',
+            'pegawai_ids.*' => 'exists:ms_pegawai,id',
+        ]);
+
+        $pegawais = MsPegawai::with('shiftDetail', 'orang')
+            ->whereIn('id', $request->pegawai_ids)
+            ->get();
+
+        if ($pegawais->isEmpty()) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 404);
+        }
+
+        $createdPresensi = [];
+        $errors = [];
+
+        $start = Carbon::parse($request->tanggal_mulai);
+        $end = Carbon::parse($request->tanggal_selesai);
+
+        foreach ($pegawais as $pegawai) {
+            for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+                $tanggal = $date->format('Y-m-d');
+
+                // Cek duplikat presensi
+                $existingPresensi = Presensi::where('no_ktp', $pegawai->orang->no_ktp ?? null)
+                    ->whereDate('waktu_masuk', $tanggal)
+                    ->first();
+
+                if ($existingPresensi) {
+                    $errors[] = "Pegawai {$pegawai->orang->nama} sudah memiliki presensi pada tanggal {$tanggal}";
+                    continue;
+                }
+
+                $shiftDetail = $pegawai->shiftDetail;
+                if (!$shiftDetail) {
+                    $errors[] = "Pegawai {$pegawai->orang->nama} tidak memiliki shift detail";
+                    continue;
+                }
+
+                $waktuMasuk = $this->getWaktuMasukShift($shiftDetail, $date);
+                $waktuPulang = $this->getWaktuPulangShift($shiftDetail, $date);
+
+                if (!$waktuMasuk || !$waktuPulang) {
+                    $errors[] = "Pegawai {$pegawai->orang->nama} tidak memiliki jam kerja pada hari " . $date->locale('id')->isoFormat('dddd');
+                    continue;
+                }
+
+                try {
+                    $presensi = Presensi::create([
+                        'no_ktp' => $pegawai->orang->no_ktp,
+                        'shift_id' => $shiftDetail->shift_id,
+                        'shift_detail_id' => $shiftDetail->id,
+                        'waktu_masuk' => $waktuMasuk,
+                        'waktu_pulang' => $waktuPulang,
+                        'status_masuk' => 'absen_masuk',
+                        'status_pulang' => 'absen_pulang',
+                        'lokasi_masuk' => null,
+                        'lokasi_pulang' => null,
+                        'keterangan_masuk' => $request->keterangan,
+                        'keterangan_pulang' => $request->keterangan,
+                        'status_presensi' => 'hadir',
+                    ]);
+
+                    $createdPresensi[] = [
+                        'pegawai' => $pegawai->orang->nama,
+                        'tanggal' => $tanggal,
+                        'presensi_id' => $presensi->id,
+                    ];
+                } catch (\Exception $e) {
+                    $errors[] = "Gagal membuat presensi untuk pegawai {$pegawai->orang->nama} pada tanggal {$tanggal}: " . $e->getMessage();
+                }
+            }
+        }
+
+        return response()->json([
+            'message' => 'Berhasil Mempresensikan pegawai',
+            'created_count' => count($createdPresensi),
+            'error_count' => count($errors),
+            'created_data' => $createdPresensi,
+            'errors' => $errors,
+        ]);
+    }
 
     /**
      * Get waktu masuk berdasarkan shift detail dan tanggal
@@ -1736,11 +1777,11 @@ public function getOvertimePegawai(Request $request)
         $masukKey = $hari . '_masuk';
         //dd($masukKey, $shiftDetail->$masukKey);
         $jamString = trim($shiftDetail->$masukKey ?? '');
-    
+
         if (!$jamString) {
             return null; // tidak ada data jam
         }
-    
+
         try {
             // Gunakan H:i karena di DB formatnya "08:00"
             $jamMasuk = Carbon::createFromFormat('H:i', $jamString);
@@ -1750,7 +1791,7 @@ public function getOvertimePegawai(Request $request)
             return null;
         }
     }
-    
+
 
     /**
      * Get waktu pulang berdasarkan shift detail dan tanggal
@@ -1763,21 +1804,15 @@ public function getOvertimePegawai(Request $request)
     {
         $hari = strtolower($date->locale('id')->isoFormat('dddd'));
         $pulangKey = $hari . '_pulang';
-        
+
         if (!$shiftDetail->$pulangKey) {
             return null;
         }
 
         // Parse jam pulang dari shift (format H:i)
         $jamPulang = Carbon::createFromFormat('H:i', $shiftDetail->$pulangKey);
-        
+
         // Kombinasikan dengan tanggal
         return $date->copy()->setTime($jamPulang->hour, $jamPulang->minute, 0);
     }
-
-
-
-
-
-
 }

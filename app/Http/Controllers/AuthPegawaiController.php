@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Helpers\JWT;
 use App\Models\MsOrang;
+use Illuminate\Support\Facades\DB;
 
 class AuthPegawaiController extends Controller
 {
@@ -57,6 +58,36 @@ class AuthPegawaiController extends Controller
             $pegawai->nama,
             $pegawai->gelar_belakang,
         ]));
+
+        $id_orang = $pegawai->pegawai->id_orang;
+
+        $sql = "
+            SELECT 
+                CASE
+                    WHEN oyg.id IS NOT NULL AND oyg.aktif = 1 THEN oy.nama
+                    ELSE upk.nama
+                END AS upk_name
+            FROM ms_pegawai
+            LEFT JOIN ms_unit upk ON ms_pegawai.id_upk = upk.id
+            LEFT JOIN organ_yayasan_anggota oyg ON oyg.id_orang = ms_pegawai.id_orang
+            LEFT JOIN organ_yayasan_jabatan oyj ON oyj.id = oyg.id_organ_jabatan
+            LEFT JOIN organ_yayasan oy ON oy.id = oyj.id_organ
+            WHERE ms_pegawai.id_orang = ?
+            LIMIT 1
+        ";
+
+        $upk = DB::selectOne($sql, [$id_orang]);
+        //dd($upk);
+
+
+        
+        //var_dump($id_orang);
+        //var_dump($pegawai->pegawa->id_orang);
+        //var_dump($upk);
+        //die();
+        
+
+        $upkName = $upk ? $upk->upk_name : null;
 
         $unit = $pegawai->pegawai->unit ?? null;
 
@@ -173,7 +204,7 @@ class AuthPegawaiController extends Controller
             'tgl_lahir' => $pegawai->tgl_lahir,
             'jenis_kelamin' => $pegawai->jenis_kelamin,
             'no_hp' => $pegawai->no_hp,
-            'jabatan' => $pegawai->pegawai->profesi ?? null,
+            'jabatan' => $upkName,
             'shift_detail_id' => $pegawai->pegawai->presensi_shift_detail_id ?? null,
             'unit_detail_id_presensi' => $pegawai->pegawai->presensi_ms_unit_detail_id ?? null,
                         'shift_detail' => $pegawai->pegawai->shiftDetail ? [
