@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Presensi;
 use App\Models\MsPegawai;
 use App\Models\ShiftDetail;
+use App\Models\PresensiJadwalDinas;
 use Carbon\Carbon;
 use App\Helpers\AdminUnitHelper;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +14,8 @@ use Illuminate\Support\Facades\Log;
 class DinasController extends Controller
 {
     /**
-     * Create dinas for multiple employees
+     * Create jadwal dinas for multiple employees
+     * Sekarang hanya menyimpan jadwal dinas, tidak langsung membuat presensi
      * 
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -27,13 +29,13 @@ class DinasController extends Controller
 
         // Get validation rules using helper
         $unitValidationRules = AdminUnitHelper::getUnitIdValidationRules($request);
-        
+
         $request->validate(array_merge([
             'tanggal_mulai' => 'required|date',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'keterangan' => 'required|string|max:255',
             'pegawai_ids' => 'required|array',
-            'pegawai_ids.*' => 'exists:pegawai,id',
+            'pegawai_ids.*' => 'exists:ms_pegawai,id',
         ], $unitValidationRules));
 
         // Get unit_id using helper
@@ -46,87 +48,48 @@ class DinasController extends Controller
         // Validasi bahwa semua pegawai milik unit admin
         $pegawais = MsPegawai::whereIn('id', $request->pegawai_ids)
             ->whereHas('unitDetailPresensi', function ($q) use ($unitId) {
-                $q->where('unit_id', $unitId);
+                $q->where('presensi_ms_unit_detail_id', $unitId);
             })
-            ->with(['shiftDetail'])
+            ->with(['orang'])
             ->get();
 
         if ($pegawais->count() !== count($request->pegawai_ids)) {
             return response()->json(['message' => 'Beberapa pegawai tidak ditemukan atau tidak memiliki akses'], 400);
         }
 
-        $createdPresensi = [];
-        $errors = [];
+        try {
+            // Simpan jadwal dinas ke tabel baru
+            $jadwalDinas = PresensiJadwalDinas::create([
+                'tanggal_mulai' => $request->tanggal_mulai,
+                'tanggal_selesai' => $request->tanggal_selesai,
+                'keterangan' => $request->keterangan,
+                'pegawai_ids' => $request->pegawai_ids,
+                'unit_id' => $unitId,
+                'created_by' => $admin->id,
+                'is_active' => true
+            ]);
 
-        // Generate tanggal range
-        $start = Carbon::parse($request->tanggal_mulai);
-        $end = Carbon::parse($request->tanggal_selesai);
-
-        foreach ($pegawais as $pegawai) {
-            // Loop setiap tanggal dalam range
-            for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-                $tanggal = $date->format('Y-m-d');
-                
-                // Cek apakah sudah ada presensi di tanggal tersebut
-                $existingPresensi = Presensi::where('no_ktp', $pegawai->no_ktp)
-                    ->whereDate('waktu_masuk', $tanggal)
-                    ->first();
-                
-                if ($existingPresensi) {
-                    $errors[] = "Pegawai {$pegawai->nama} sudah memiliki presensi pada tanggal {$tanggal}";
-                    continue;
-                }
-
-                // Ambil shift detail pegawai
-                $shiftDetail = $pegawai->shiftDetail;
-                if (!$shiftDetail) {
-                    $errors[] = "Pegawai {$pegawai->nama} tidak memiliki shift detail";
-                    continue;
-                }
-
-                // Tentukan waktu masuk dan pulang berdasarkan shift
-                $waktuMasuk = $this->getWaktuMasukShift($shiftDetail, $date);
-                $waktuPulang = $this->getWaktuPulangShift($shiftDetail, $date);
-
-                if (!$waktuMasuk || !$waktuPulang) {
-                    $errors[] = "Pegawai {$pegawai->nama} tidak memiliki jam kerja pada hari " . $date->locale('id')->isoFormat('dddd');
-                    continue;
-                }
-
-                try {
-                    $presensi = Presensi::create([
-                        'no_ktp' => $pegawai->no_ktp,
-                        'shift_id' => $shiftDetail->shift_id,
-                        'shift_detail_id' => $shiftDetail->id,
-                        'waktu_masuk' => $waktuMasuk,
-                        'waktu_pulang' => $waktuPulang,
-                        'status_masuk' => 'absen_masuk',
-                        'status_pulang' => 'absen_pulang',
-                        'lokasi_masuk' => null,
-                        'lokasi_pulang' => null,
-                        'keterangan_masuk' => $request->keterangan,
-                        'keterangan_pulang' => $request->keterangan,
-                        'status_presensi' => 'dinas',
-                    ]);
-
-                    $createdPresensi[] = [
-                        'pegawai' => $pegawai->nama,
-                        'tanggal' => $tanggal,
-                        'presensi_id' => $presensi->id
+            return response()->json([
+                'message' => 'Jadwal dinas berhasil dibuat',
+                'jadwal_dinas_id' => $jadwalDinas->id,
+                'tanggal_mulai' => $jadwalDinas->tanggal_mulai->format('Y-m-d'),
+                'tanggal_selesai' => $jadwalDinas->tanggal_selesai->format('Y-m-d'),
+                'keterangan' => $jadwalDinas->keterangan,
+                'jumlah_pegawai' => count($request->pegawai_ids),
+                'pegawai_list' => $pegawais->map(function ($pegawai) {
+                    return [
+                        'id' => $pegawai->id,
+                        'nama' => $pegawai->orang->nama ?? $pegawai->nama,
+                        'no_ktp' => $pegawai->orang->no_ktp ?? $pegawai->no_ktp
                     ];
-                } catch (\Exception $e) {
-                    $errors[] = "Gagal membuat presensi dinas untuk pegawai {$pegawai->nama} pada tanggal {$tanggal}: " . $e->getMessage();
-                }
-            }
+                })
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error creating jadwal dinas: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal membuat jadwal dinas: ' . $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'Proses pembuatan dinas selesai',
-            'created_count' => count($createdPresensi),
-            'error_count' => count($errors),
-            'created_data' => $createdPresensi,
-            'errors' => $errors
-        ]);
     }
 
     /**
@@ -142,11 +105,11 @@ class DinasController extends Controller
         $masukKey = $hari . '_masuk';
         //dd($masukKey, $shiftDetail->$masukKey);
         $jamString = trim($shiftDetail->$masukKey ?? '');
-    
+
         if (!$jamString) {
             return null; // tidak ada data jam
         }
-    
+
         try {
             // Gunakan H:i karena di DB formatnya "08:00"
             $jamMasuk = Carbon::createFromFormat('H:i', $jamString);
@@ -156,7 +119,7 @@ class DinasController extends Controller
             return null;
         }
     }
-    
+
 
     /**
      * Get waktu pulang berdasarkan shift detail dan tanggal
@@ -169,14 +132,14 @@ class DinasController extends Controller
     {
         $hari = strtolower($date->locale('id')->isoFormat('dddd'));
         $pulangKey = $hari . '_pulang';
-        
+
         if (!$shiftDetail->$pulangKey) {
             return null;
         }
 
         // Parse jam pulang dari shift (format H:i)
         $jamPulang = Carbon::createFromFormat('H:i', $shiftDetail->$pulangKey);
-        
+
         // Kombinasikan dengan tanggal
         return $date->copy()->setTime($jamPulang->hour, $jamPulang->minute, 0);
     }
@@ -194,7 +157,222 @@ class DinasController extends Controller
             return response()->json(['message' => 'Admin tidak ditemukan'], 401);
         }
 
+
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
+        $bulan = $request->query('bulan', Carbon::now()->month);
+        $tahun = $request->query('tahun', Carbon::now()->year);
+        $pegawai_id = $request->query('pegawai_id');
+
+        // Ambil semua pegawai di unit admin
+        $pegawais = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
+            $q->where('presensi_ms_unit_detail_id', $unitId);
+        })
+            ->with('orang:id,no_ktp,nama')
+            ->get(['id', 'id_orang']);
+        $noKtps = $pegawais->pluck('orang.no_ktp');
+
+
+        // Ambil jadwal dinas dari tabel baru
+        $start = Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
+        $end = $start->copy()->endOfMonth();
+
+        $query = PresensiJadwalDinas::active()
+            ->where('unit_id', $unitId)
+            ->inDateRange($start->toDateString(), $end->toDateString())
+            ->with(['unit', 'createdBy'])
+            ->orderBy('tanggal_mulai');
+
+        // Filter by pegawai jika ada
+        if ($pegawai_id) {
+            $query->whereJsonContains('pegawai_ids', $pegawai_id);
+        }
+
+        $jadwalDinas = $query->get();
+
+        // Ambil data pegawai untuk mapping
+        $pegawaiIds = collect();
+        foreach ($jadwalDinas as $jadwal) {
+            $pegawaiIds = $pegawaiIds->merge($jadwal->pegawai_ids);
+        }
+        $pegawaiIds = $pegawaiIds->unique();
+
+        $pegawais = MsPegawai::whereIn('id', $pegawaiIds)
+            ->with(['orang'])
+            ->get()
+            ->keyBy('id');
+
+        $result = [];
+        foreach ($jadwalDinas as $jadwal) {
+            $pegawaiList = [];
+            foreach ($jadwal->pegawai_ids as $pegawaiId) {
+                $pegawai = $pegawais->get($pegawaiId);
+                if ($pegawai) {
+                    $pegawaiList[] = [
+                        'id' => $pegawai->id,
+                        'nama' => $pegawai->orang->nama ?? $pegawai->nama,
+                        'no_ktp' => $pegawai->orang->no_ktp ?? $pegawai->no_ktp
+                    ];
+                }
+            }
+
+            $result[] = [
+                'id' => $jadwal->id,
+                'tanggal_mulai' => $jadwal->tanggal_mulai->format('Y-m-d'),
+                'tanggal_selesai' => $jadwal->tanggal_selesai->format('Y-m-d'),
+                'keterangan' => $jadwal->keterangan,
+                'unit' => $jadwal->unit ? $jadwal->unit->nama : null,
+                'created_by' => $jadwal->createdBy ? $jadwal->createdBy->name : null,
+                'created_at' => $jadwal->created_at->format('Y-m-d H:i:s'),
+                'pegawai_list' => $pegawaiList,
+                'jumlah_pegawai' => count($pegawaiList)
+            ];
+        }
+
+        return response()->json($result);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $admin = $request->get('admin');
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
+
+        // Cari jadwal dinas
+        $jadwalDinas = PresensiJadwalDinas::find($id);
+        if (!$jadwalDinas) {
+            return response()->json(['message' => 'Jadwal dinas tidak ditemukan'], 404);
+        }
+
+        // Get validation rules using helper
+        $unitValidationRules = AdminUnitHelper::getUnitIdValidationRules($request);
+
+        $request->validate(array_merge([
+            'tanggal_mulai'   => 'required|date',
+            'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
+            'keterangan'      => 'required|string|max:255',
+            'pegawai_ids'     => 'required|array',
+            'pegawai_ids.*'   => 'exists:ms_pegawai,id',
+        ], $unitValidationRules));
+
         // Get unit_id using helper
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
+        // Validasi bahwa semua pegawai milik unit admin
+        $pegawais = MsPegawai::whereIn('id', $request->pegawai_ids)
+            ->whereHas('unitDetailPresensi', function ($q) use ($unitId) {
+                $q->where('presensi_ms_unit_detail_id', $unitId);
+            })
+            ->with(['orang'])
+            ->get();
+
+        if ($pegawais->count() !== count($request->pegawai_ids)) {
+            return response()->json(['message' => 'Beberapa pegawai tidak ditemukan atau tidak memiliki akses'], 400);
+        }
+
+        try {
+            // Update jadwal dinas
+            $jadwalDinas->update([
+                'tanggal_mulai'   => $request->tanggal_mulai,
+                'tanggal_selesai' => $request->tanggal_selesai,
+                'keterangan'      => $request->keterangan,
+                'pegawai_ids'     => $request->pegawai_ids,
+                'unit_id'         => $unitId,
+                'updated_by'      => $admin->id,
+            ]);
+
+            return response()->json([
+                'message'        => 'Jadwal dinas berhasil diperbarui',
+                'jadwal_dinas_id' => $jadwalDinas->id,
+                'tanggal_mulai'  => $jadwalDinas->tanggal_mulai->format('Y-m-d'),
+                'tanggal_selesai' => $jadwalDinas->tanggal_selesai->format('Y-m-d'),
+                'keterangan'     => $jadwalDinas->keterangan,
+                'jumlah_pegawai' => count($request->pegawai_ids),
+                'pegawai_list'   => $pegawais->map(function ($pegawai) {
+                    return [
+                        'id'     => $pegawai->id,
+                        'nama'   => $pegawai->orang->nama ?? $pegawai->nama,
+                        'no_ktp' => $pegawai->orang->no_ktp ?? $pegawai->no_ktp
+                    ];
+                })
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error updating jadwal dinas: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal memperbarui jadwal dinas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    /**
+     * Delete dinas for specific date range and employees
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function destroy(Request $request, $jadwal_dinas_id)
+    {
+        $admin = $request->get('admin');
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
+
+        $unitResult = AdminUnitHelper::getUnitId($request);
+        if ($unitResult['error']) {
+            return response()->json(['message' => $unitResult['error']], 400);
+        }
+        $unitId = $unitResult['unit_id'];
+
+        // Cari jadwal dinas yang akan dihapus
+        $jadwalDinas = PresensiJadwalDinas::where('id', $jadwal_dinas_id)
+            ->where('unit_id', $unitId)
+            ->first();
+
+        if (!$jadwalDinas) {
+            return response()->json(['message' => 'Jadwal dinas tidak ditemukan atau tidak memiliki akses'], 404);
+        }
+
+        try {
+            // Hapus permanen
+            $jadwalDinas->delete();
+
+            return response()->json([
+                'message' => 'Jadwal dinas berhasil dihapus',
+                'jadwal_dinas_id' => $jadwal_dinas_id,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error deleting jadwal dinas: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal menghapus jadwal dinas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    /**
+     * Get list presensi dinas yang sudah dilakukan (bukan jadwal dinas)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function presensiDinas(Request $request)
+    {
+        $admin = $request->get('admin');
+        if (!$admin) {
+            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
+        }
+
+
         $unitResult = AdminUnitHelper::getUnitId($request);
         if ($unitResult['error']) {
             return response()->json(['message' => $unitResult['error']], 400);
@@ -207,17 +385,17 @@ class DinasController extends Controller
 
         // Ambil semua pegawai di unit admin
         $pegawaiQuery = MsPegawai::whereHas('unitDetailPresensi', function ($q) use ($unitId) {
-            $q->where('unit_id', $unitId);
+            $q->where('ms_unit_id', $unitId);
         });
 
         if ($pegawai_id) {
             $pegawaiQuery->where('id', $pegawai_id);
         }
 
-        $pegawais = $pegawaiQuery->get(['id', 'no_ktp', 'nama']);
-        $noKtps = $pegawais->pluck('no_ktp');
+        $pegawais = $pegawaiQuery->with(['orang'])->get();
+        $noKtps = $pegawais->pluck('orang.no_ktp')->filter();
 
-        // Ambil presensi dinas
+        // Ambil presensi dinas yang sudah dilakukan
         $start = Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
         $end = $start->copy()->endOfMonth();
 
@@ -230,7 +408,7 @@ class DinasController extends Controller
 
         // Group by pegawai dan tanggal
         $result = [];
-        $pegawaiMap = $pegawais->keyBy('no_ktp');
+        $pegawaiMap = $pegawais->keyBy('orang.no_ktp');
 
         foreach ($presensiDinas as $presensi) {
             $pegawai = $pegawaiMap[$presensi->no_ktp] ?? null;
@@ -243,8 +421,8 @@ class DinasController extends Controller
                 $result[$key] = [
                     'pegawai' => [
                         'id' => $pegawai->id,
-                        'no_ktp' => $pegawai->no_ktp,
-                        'nama' => $pegawai->nama,
+                        'no_ktp' => $pegawai->orang->no_ktp,
+                        'nama' => $pegawai->orang->nama,
                     ],
                     'tanggal' => $tanggal,
                     'hari' => $presensi->waktu_masuk->locale('id')->isoFormat('dddd'),
@@ -258,62 +436,5 @@ class DinasController extends Controller
         }
 
         return response()->json(array_values($result));
-    }
-
-    /**
-     * Delete dinas for specific date range and employees
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function destroy(Request $request)
-    {
-        $admin = $request->get('admin');
-        if (!$admin) {
-            return response()->json(['message' => 'Admin tidak ditemukan'], 401);
-        }
-
-        // Get validation rules using helper
-        $unitValidationRules = AdminUnitHelper::getUnitIdValidationRules($request);
-        
-        $request->validate(array_merge([
-            'tanggal_mulai' => 'required|date',
-            'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
-            'pegawai_ids' => 'required|array',
-            'pegawai_ids.*' => 'exists:pegawai,id',
-        ], $unitValidationRules));
-
-        // Get unit_id using helper
-        $unitResult = AdminUnitHelper::getUnitId($request);
-        if ($unitResult['error']) {
-            return response()->json(['message' => $unitResult['error']], 400);
-        }
-        $unitId = $unitResult['unit_id'];
-
-        // Validasi bahwa semua pegawai milik unit admin
-        $pegawais = MsPegawai::whereIn('id', $request->pegawai_ids)
-            ->whereHas('unitDetailPresensi', function ($q) use ($unitId) {
-                $q->where('unit_id', $unitId);
-            })
-            ->get();
-
-        if ($pegawais->count() !== count($request->pegawai_ids)) {
-            return response()->json(['message' => 'Beberapa pegawai tidak ditemukan atau tidak memiliki akses'], 400);
-        }
-
-        $noKtps = $pegawais->pluck('no_ktp');
-        $start = Carbon::parse($request->tanggal_mulai);
-        $end = Carbon::parse($request->tanggal_selesai);
-
-        // Hapus presensi dinas
-        $deleted = Presensi::whereIn('no_ktp', $noKtps)
-            ->where('status_presensi', 'dinas')
-            ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
-            ->delete();
-
-        return response()->json([
-            'message' => 'Dinas berhasil dihapus',
-            'deleted_count' => $deleted
-        ]);
     }
 }

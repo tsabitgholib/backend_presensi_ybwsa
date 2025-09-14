@@ -86,7 +86,7 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::get('presensi/rekap-by-unit', [PresensiController::class, 'rekapPresensiByAdminUnit']);
     Route::get('presensi/history-by-unit', [PresensiController::class, 'historyByAdminUnit']);
     Route::get('presensi/monthly-recap', [PresensiController::class, 'rekapHistoryBulananPegawai']);
-    Route::get('presensi/yearly-recap', [PresensiController::class, 'grafikTahunanPegawai']);
+    Route::get('presensi/yearly-recap', [PresensiController::class, 'rekapHistoryTahunanPegawai']);
     Route::get('presensi/detail-history-by-unit', [PresensiController::class, 'detailHistoryByAdminUnit']);
     Route::put('presensi/update-by-admin-unit/{pegawai_id}/{tanggal}', [PresensiController::class, 'updatePresensiByAdminUnitBulk']);
     Route::get('presensi/rekap-bulanan-pegawai', [PresensiController::class, 'rekapBulananByPegawai']);
@@ -152,9 +152,11 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::delete('lauk-pauk/delete/{id}', [\App\Http\Controllers\LaukPaukUnitController::class, 'destroy']);
 
     // Dinas
-    Route::get('dinas', [\App\Http\Controllers\DinasController::class, 'index']);
+    Route::get('dinas/get-all', [\App\Http\Controllers\DinasController::class, 'index']); // Jadwal dinas
+    Route::get('dinas/get-presensi', [\App\Http\Controllers\DinasController::class, 'presensiDinas']); // Presensi dinas yang sudah dilakukan
     Route::post('dinas/create', [\App\Http\Controllers\DinasController::class, 'store']);
-    Route::delete('dinas/delete', [\App\Http\Controllers\DinasController::class, 'destroy']);
+    Route::put('/dinas/edit/{id}', [\App\Http\Controllers\DinasController::class, 'update']);
+    Route::delete('dinas/delete/{id}', [\App\Http\Controllers\DinasController::class, 'destroy']);
 
     // Dashboard
     Route::get('dashboard', [DashboardController::class, 'index']);
