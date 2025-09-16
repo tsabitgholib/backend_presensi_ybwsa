@@ -53,9 +53,9 @@ class DinasController extends Controller
             ->with(['orang'])
             ->get();
 
-        if ($pegawais->count() !== count($request->pegawai_ids)) {
-            return response()->json(['message' => 'Beberapa pegawai tidak ditemukan atau tidak memiliki akses'], 400);
-        }
+        // if ($pegawais->count() !== count($request->pegawai_ids)) {
+        //     return response()->json(['message' => 'Beberapa pegawai tidak ditemukan atau tidak memiliki akses'], 400);
+        // }
 
         try {
             // Simpan jadwal dinas ke tabel baru

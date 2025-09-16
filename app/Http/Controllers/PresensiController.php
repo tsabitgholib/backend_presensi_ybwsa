@@ -194,33 +194,34 @@ class PresensiController extends Controller
             ]);
         }
 
-        // --- logika normal absen masuk ---
-        if ($jamMasuk) {
-            try {
-                $waktuMasuk = \Carbon\Carbon::createFromFormat('H:i', $jamMasuk, 'Asia/Jakarta');
-                $batasMasuk = $waktuMasuk->copy()->addMinutes($tolMasuk);
+        // logic presensi
+        if ($pegawai->pegawai->profesi == 'driver' || $jadwalDinas) {
+            $statusMasuk = 'absen_masuk';
+            $keteranganMasuk = $jadwalDinas ? $jadwalDinas->keterangan : 'Otomatis absen masuk';
+            $waktuMasukUntukSimpan = $now;
+        } else {
+            if ($jamMasuk) {
+                try {
+                    $waktuMasuk = \Carbon\Carbon::createFromFormat('H:i', $jamMasuk, 'Asia/Jakarta');
+                    $batasMasuk = $waktuMasuk->copy()->addMinutes($tolMasuk);
 
-                // if ($now->lessThan($waktuMasuk)) {
-                //     return response()->json(['message' => 'Belum waktunya absen masuk'], 400);
-                // }
-
-                if ($now->between($waktuMasuk, $batasMasuk)) {
-                    $statusMasuk = 'absen_masuk';
-                } elseif ($now->greaterThan($batasMasuk) && $now->lessThan($jam12)) {
-                    $statusMasuk = 'terlambat';
-                    $keteranganMasuk = 'Terlambat absen masuk';
+                    if ($now->between($waktuMasuk, $batasMasuk)) {
+                        $statusMasuk = 'absen_masuk';
+                    } elseif ($now->greaterThan($batasMasuk) && $now->lessThan($jam12)) {
+                        $statusMasuk = 'terlambat';
+                        $keteranganMasuk = 'Terlambat absen masuk';
+                    }
+                } catch (\Exception $e) {
+                    return response()->json(['message' => 'Format jam masuk tidak valid'], 400);
                 }
-            } catch (\Exception $e) {
-                return response()->json(['message' => 'Format jam masuk tidak valid'], 400);
+            }
+
+            if (!$statusMasuk) {
+                $statusMasuk = 'tidak_absen_masuk';
+                $keteranganMasuk = 'Tidak absen masuk';
             }
         }
 
-        if (!$statusMasuk) {
-            $statusMasuk = 'tidak_absen_masuk';
-            $keteranganMasuk = 'Tidak absen masuk';
-        }
-
-        // Tentukan status presensi berdasarkan jadwal dinas
         $statusPresensi = 'hadir';
         $keteranganDinas = null;
 
@@ -243,10 +244,9 @@ class PresensiController extends Controller
             'status_presensi' => $statusPresensi,
         ]);
 
-        // Jika profesi driver → sekali absen langsung pulang
         if ($pegawai->pegawai->profesi == 'driver') {
             $driverStatusPresensi = $jadwalDinas ? 'dinas' : 'hadir';
-            $driverKeterangan = $jadwalDinas ? $jadwalDinas->keterangan : 'Driver otomatis absen pulang';
+            $driverKeterangan = $jadwalDinas ? $jadwalDinas->keterangan : '';
 
             $presensi->update([
                 'waktu_pulang' => $now,
@@ -256,6 +256,21 @@ class PresensiController extends Controller
                 'status_presensi' => $driverStatusPresensi,
             ]);
         }
+
+        if ($jadwalDinas) {
+            $statusPresensiFinal = $jadwalDinas ? 'dinas' : 'hadir';
+            $keteranganFinal = $jadwalDinas ? $jadwalDinas->keterangan : 'dinas';
+
+            $presensi->update([
+                'waktu_pulang' => $now,
+                'status_pulang' => 'absen_pulang',
+                'lokasi_pulang' => $request->lokasi,
+                'keterangan_pulang' => $keteranganFinal,
+                'status_presensi' => $statusPresensiFinal,
+            ]);
+        }
+
+
 
         return response()->json([
             'no_ktp' => $presensi->no_ktp,
@@ -684,162 +699,157 @@ class PresensiController extends Controller
     // }
 
     public function rekapHistoryTahunanPegawai(Request $request)
-{
-    $pegawai = $request->get('pegawai');
-    if (!$pegawai) {
-        return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
-    }
-
-    $pegawai->load(['pegawai.unitDetailPresensi.unit', 'pegawai']);
-    $tahun = (int) $request->query('tahun', now('Asia/Jakarta')->year);
-
-    $result = [];
-
-    for ($bulan = 1; $bulan <= 12; $bulan++) {
-        $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
-        $end = $start->copy()->endOfMonth();
-
-        // Ambil presensi berdasarkan waktu_masuk
-        $presensis = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
-            ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
-            ->orderBy('waktu_masuk')
-            ->get();
-
-        // Ambil pengajuan
-        $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
-            ->where('status', 'diterima')
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('tanggal_mulai', [$start, $end])
-                  ->orWhereBetween('tanggal_selesai', [$start, $end]);
-            })->get();
-
-        $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
-            ->where('status', 'diterima')
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('tanggal_mulai', [$start, $end])
-                  ->orWhereBetween('tanggal_selesai', [$start, $end]);
-            })->get();
-
-        $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
-            ->where('status', 'diterima')
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('tanggal_mulai', [$start, $end])
-                  ->orWhereBetween('tanggal_selesai', [$start, $end]);
-            })->get();
-
-        $agg = [
-            'hadir' => 0,
-            'izin' => 0,
-            'sakit' => 0,
-            'cuti' => 0,
-            'tidak_hadir' => 0,
-            'dinas' => 0,
-            'lembur' => 0,
-            'terlambat' => 0,
-            'pulang_awal' => 0,
-            'tidak_absen_masuk' => 0,
-            'tidak_absen_pulang' => 0,
-            'belum_presensi' => 0,
-        ];
-
-        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-            $carbon = $date->copy();
-
-            // Skip weekend
-            if ($carbon->isSaturday() || $carbon->isSunday()) continue;
-
-            // Skip libur unit
-            $unit = $pegawai->pegawai->unitDetailPresensi->unit ?? null;
-            if ($unit) {
-                $isHariLibur = \App\Models\HariLibur::isHariLibur($unit->id, $carbon->toDateString());
-                if ($isHariLibur) continue;
-            }
-
-            $tanggal = $carbon->format('Y-m-d');
-
-            // Presensi hari ini (bisa >1)
-            $presensiHari = $presensis->filter(function ($p) use ($tanggal) {
-                return $p->waktu_masuk && \Carbon\Carbon::parse($p->waktu_masuk)->format('Y-m-d') === $tanggal;
-            });
-
-            $status = null;
-
-            // PRIORITAS sama seperti bulanan
-            if ($presensiHari->count() && $presensiHari->where('status_presensi', 'dinas')->count()) {
-                $status = 'dinas';
-            }
-            elseif ($presensiHari->count() && $presensiHari->where('overtime', true)->count()) {
-                $status = 'lembur';
-            }
-            elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'terlambat')->count()) {
-                $status = 'terlambat';
-            }
-            elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'tidak_absen_masuk')->count()) {
-                $status = 'tidak_absen_masuk';
-            }
-            elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'pulang_awal')->count()) {
-                $status = 'pulang_awal';
-            }
-            elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
-                $status = 'tidak_absen_pulang';
-            }
-            else {
-                if ($presensiHari->count()
-                    && $presensiHari->where('status_masuk', 'absen_masuk')->count()
-                    && $presensiHari->where('status_pulang', 'absen_pulang')->count()
-                ) {
-                    $status = 'hadir';
-                }
-            }
-
-            // Cek izin/cuti/sakit bila belum ada status
-            if (!$status) {
-                foreach ($izin as $i) {
-                    if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
-                        $status = 'izin';
-                        break;
-                    }
-                }
-            }
-            if (!$status) {
-                foreach ($cuti as $c) {
-                    if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
-                        $status = 'cuti';
-                        break;
-                    }
-                }
-            }
-            if (!$status) {
-                foreach ($sakit as $s) {
-                    if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
-                        $status = 'sakit';
-                        break;
-                    }
-                }
-            }
-
-            // Kalau tetap null -> bedakan tidak_hadir vs belum_presensi
-            if (!$status) {
-                if ($carbon->lte(now('Asia/Jakarta')->startOfDay())) {
-                    $status = 'tidak_hadir';
-                } else {
-                    $status = 'belum_presensi';
-                }
-            }
-
-            if (isset($agg[$status])) {
-                $agg[$status]++;
-            }
+    {
+        $pegawai = $request->get('pegawai');
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
         }
 
-        $result[] = array_merge([
-            'bulan' => $bulan,
-            'tahun' => $tahun,
-        ], $agg);
-    }
+        $pegawai->load(['pegawai.unitDetailPresensi.unit', 'pegawai']);
+        $tahun = (int) $request->query('tahun', now('Asia/Jakarta')->year);
 
-    return response()->json($result);
-}
+        $result = [];
+
+        for ($bulan = 1; $bulan <= 12; $bulan++) {
+            $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
+            $end = $start->copy()->endOfMonth();
+
+            // Ambil presensi berdasarkan waktu_masuk
+            $presensis = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
+                ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+                ->orderBy('waktu_masuk')
+                ->get();
+
+            // Ambil pengajuan
+            $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('tanggal_mulai', [$start, $end])
+                        ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                })->get();
+
+            $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('tanggal_mulai', [$start, $end])
+                        ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                })->get();
+
+            $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
+                ->where('status', 'diterima')
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('tanggal_mulai', [$start, $end])
+                        ->orWhereBetween('tanggal_selesai', [$start, $end]);
+                })->get();
+
+            $agg = [
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'cuti' => 0,
+                'tidak_hadir' => 0,
+                'dinas' => 0,
+                'lembur' => 0,
+                'terlambat' => 0,
+                'pulang_awal' => 0,
+                'tidak_absen_masuk' => 0,
+                'tidak_absen_pulang' => 0,
+                'belum_presensi' => 0,
+            ];
+
+            for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+                $carbon = $date->copy();
+
+                // Skip weekend
+                if ($carbon->isSaturday() || $carbon->isSunday()) continue;
+
+                // Skip libur unit
+                $unit = $pegawai->pegawai->unitDetailPresensi->unit ?? null;
+                if ($unit) {
+                    $isHariLibur = \App\Models\HariLibur::isHariLibur($unit->id, $carbon->toDateString());
+                    if ($isHariLibur) continue;
+                }
+
+                $tanggal = $carbon->format('Y-m-d');
+
+                // Presensi hari ini (bisa >1)
+                $presensiHari = $presensis->filter(function ($p) use ($tanggal) {
+                    return $p->waktu_masuk && \Carbon\Carbon::parse($p->waktu_masuk)->format('Y-m-d') === $tanggal;
+                });
+
+                $status = null;
+
+                // PRIORITAS sama seperti bulanan
+                if ($presensiHari->count() && $presensiHari->where('status_presensi', 'dinas')->count()) {
+                    $status = 'dinas';
+                } elseif ($presensiHari->count() && $presensiHari->where('overtime', true)->count()) {
+                    $status = 'lembur';
+                } elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'terlambat')->count()) {
+                    $status = 'terlambat';
+                } elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'tidak_absen_masuk')->count()) {
+                    $status = 'tidak_absen_masuk';
+                } elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'pulang_awal')->count()) {
+                    $status = 'pulang_awal';
+                } elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
+                    $status = 'tidak_absen_pulang';
+                } else {
+                    if (
+                        $presensiHari->count()
+                        && $presensiHari->where('status_masuk', 'absen_masuk')->count()
+                        && $presensiHari->where('status_pulang', 'absen_pulang')->count()
+                    ) {
+                        $status = 'hadir';
+                    }
+                }
+
+                // Cek izin/cuti/sakit bila belum ada status
+                if (!$status) {
+                    foreach ($izin as $i) {
+                        if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
+                            $status = 'izin';
+                            break;
+                        }
+                    }
+                }
+                if (!$status) {
+                    foreach ($cuti as $c) {
+                        if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
+                            $status = 'cuti';
+                            break;
+                        }
+                    }
+                }
+                if (!$status) {
+                    foreach ($sakit as $s) {
+                        if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
+                            $status = 'sakit';
+                            break;
+                        }
+                    }
+                }
+
+                // Kalau tetap null -> bedakan tidak_hadir vs belum_presensi
+                if (!$status) {
+                    if ($carbon->lte(now('Asia/Jakarta')->startOfDay())) {
+                        $status = 'tidak_hadir';
+                    } else {
+                        $status = 'belum_presensi';
+                    }
+                }
+
+                if (isset($agg[$status])) {
+                    $agg[$status]++;
+                }
+            }
+
+            $result[] = array_merge([
+                'bulan' => $bulan,
+                'tahun' => $tahun,
+            ], $agg);
+        }
+
+        return response()->json($result);
+    }
 
 
 
@@ -1110,200 +1120,199 @@ class PresensiController extends Controller
 
     // REKAP BULANAN STATUS TERPISAH
     public function rekapHistoryBulananPegawai(Request $request)
-{
-    $pegawai = $request->get('pegawai');
-    $pegawai->load([
-        'pegawai.shiftDetail.shift',
-        'pegawai.unitDetailPresensi.unit',
-        'pegawai'
-    ]);
-    if (!$pegawai) {
-        return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
-    }
-
-    $bulan = $request->query('bulan', now('Asia/Jakarta')->month);
-    $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
-
-    // Ambil semua tanggal di bulan tsb
-    $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
-    $end = $start->copy()->endOfMonth();
-
-    $tanggalList = [];
-    for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-        $tanggalList[] = $date->format('Y-m-d');
-    }
-
-    // Hitung hari efektif
-    $hariEfektif = 0;
-    foreach ($tanggalList as $tanggal) {
-        $carbon = \Carbon\Carbon::parse($tanggal);
-        if ($carbon->isSaturday() || $carbon->isSunday()) continue;
-        if (\App\Models\HariLibur::isHariLibur($pegawai->unitDetailPresensi->unit->id, $carbon->toDateString())) continue;
-        $hariEfektif++;
-    }
-
-    // Ambil presensi pegawai di bulan tsb (pakai waktu_masuk)
-    $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
-        ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
-        ->orderBy('waktu_masuk')
-        ->get();
-
-    // Ambil pengajuan izin, cuti, sakit
-    $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
-        ->where('status', 'diterima')
-        ->where(function ($q) use ($start, $end) {
-            $q->whereBetween('tanggal_mulai', [$start, $end])
-              ->orWhereBetween('tanggal_selesai', [$start, $end]);
-        })->get();
-
-    $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
-        ->where('status', 'diterima')
-        ->where(function ($q) use ($start, $end) {
-            $q->whereBetween('tanggal_mulai', [$start, $end])
-              ->orWhereBetween('tanggal_selesai', [$start, $end]);
-        })->get();
-
-    $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
-        ->where('status', 'diterima')
-        ->where(function ($q) use ($start, $end) {
-            $q->whereBetween('tanggal_mulai', [$start, $end])
-              ->orWhereBetween('tanggal_selesai', [$start, $end]);
-        })->get();
-
-    // Inisialisasi result (tetap sama struktur)
-    $result = [
-        'hadir' => 0,
-        'izin' => 0,
-        'sakit' => 0,
-        'cuti' => 0,
-        'tidak_hadir' => 0,
-        'dinas' => 0,
-        'lembur' => 0,
-        'terlambat' => 0,
-        'pulang_awal' => 0,
-        'tidak_absen_masuk' => 0,
-        'tidak_absen_pulang' => 0,
-        'belum_presensi' => 0,
-        'tanggal_hadir' => [],
-        'tanggal_izin' => [],
-        'tanggal_sakit' => [],
-        'tanggal_cuti' => [],
-        'tanggal_tidak_hadir' => [],
-        'tanggal_dinas' => [],
-        'tanggal_lembur' => [],
-        'tanggal_terlambat' => [],
-        'tanggal_pulang_awal' => [],
-        'tanggal_tidak_absen_masuk' => [],
-        'tanggal_tidak_absen_pulang' => [],
-        'tanggal_belum_presensi' => [],
-        'bulan' => (string)$bulan,
-        'tahun' => (string)$tahun,
-        'hari_efektif' => $hariEfektif
-    ];
-
-    foreach ($tanggalList as $tanggal) {
-        $carbon = \Carbon\Carbon::parse($tanggal);
-
-        // Skip weekend/libur
-        if ($carbon->isSaturday() || $carbon->isSunday()) continue;
-        if (\App\Models\HariLibur::isHariLibur($pegawai->unitDetailPresensi->unit->id, $carbon->toDateString())) continue;
-
-        $status = null;
-        $dayString = $carbon->format('d');
-
-        // Kumpulkan presensi hari itu (bisa >1 row)
-        $presensiHari = $presensi->filter(function ($p) use ($tanggal) {
-            return $p->waktu_masuk && \Carbon\Carbon::parse($p->waktu_masuk)->format('Y-m-d') === $tanggal;
-        });
-
-        // PRIORITAS:
-        // 1) dinas
-        if ($presensiHari->count() && $presensiHari->where('status_presensi', 'dinas')->count()) {
-            $status = 'dinas';
-            $result['tanggal_dinas'][] = $dayString;
+    {
+        $pegawai = $request->get('pegawai');
+        $pegawai->load([
+            'pegawai.shiftDetail.shift',
+            'pegawai.unitDetailPresensi.unit',
+            'pegawai'
+        ]);
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
         }
-        // 2) lembur / overtime
-        elseif ($presensiHari->count() && $presensiHari->where('overtime', true)->count()) {
-            $status = 'lembur';
-            $result['tanggal_lembur'][] = $dayString;
+
+        $bulan = $request->query('bulan', now('Asia/Jakarta')->month);
+        $tahun = $request->query('tahun', now('Asia/Jakarta')->year);
+
+        // Ambil semua tanggal di bulan tsb
+        $start = \Carbon\Carbon::create($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta');
+        $end = $start->copy()->endOfMonth();
+
+        $tanggalList = [];
+        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            $tanggalList[] = $date->format('Y-m-d');
         }
-        // 3) jika ada status_masuk bermasalah → gunakan status_masuk (terlambat / tidak_absen_masuk)
-        elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'terlambat')->count()) {
-            $status = 'terlambat';
-            $result['tanggal_terlambat'][] = $dayString;
+
+        // Hitung hari efektif
+        $hariEfektif = 0;
+        foreach ($tanggalList as $tanggal) {
+            $carbon = \Carbon\Carbon::parse($tanggal);
+            if ($carbon->isSaturday() || $carbon->isSunday()) continue;
+            if (\App\Models\HariLibur::isHariLibur($pegawai->unitDetailPresensi->unit->id, $carbon->toDateString())) continue;
+            $hariEfektif++;
         }
-        elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'tidak_absen_masuk')->count()) {
-            $status = 'tidak_absen_masuk';
-            $result['tanggal_tidak_absen_masuk'][] = $dayString;
-        }
-        // 4) kalau tidak ada masalah di masuk, cek status_pulang (pulang_awal / tidak_absen_pulang)
-        elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'pulang_awal')->count()) {
-            $status = 'pulang_awal';
-            $result['tanggal_pulang_awal'][] = $dayString;
-        }
-        elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
-            $status = 'tidak_absen_pulang';
-            $result['tanggal_tidak_absen_pulang'][] = $dayString;
-        }
-        // 5) hadir normal jika ada absen_masuk & absen_pulang
-        else {
-            if ($presensiHari->count()
-                && $presensiHari->where('status_masuk', 'absen_masuk')->count()
-                && $presensiHari->where('status_pulang', 'absen_pulang')->count()
-            ) {
-                $status = 'hadir';
-                $result['tanggal_hadir'][] = $dayString;
+
+        // Ambil presensi pegawai di bulan tsb (pakai waktu_masuk)
+        $presensi = \App\Models\Presensi::where('no_ktp', $pegawai->no_ktp)
+            ->whereBetween('waktu_masuk', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59'])
+            ->orderBy('waktu_masuk')
+            ->get();
+
+        // Ambil pengajuan izin, cuti, sakit
+        $izin = \App\Models\PengajuanIzin::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+
+        $cuti = \App\Models\PengajuanCuti::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+
+        $sakit = \App\Models\PengajuanSakit::where('pegawai_id', $pegawai->id)
+            ->where('status', 'diterima')
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('tanggal_mulai', [$start, $end])
+                    ->orWhereBetween('tanggal_selesai', [$start, $end]);
+            })->get();
+
+        // Inisialisasi result (tetap sama struktur)
+        $result = [
+            'hadir' => 0,
+            'izin' => 0,
+            'sakit' => 0,
+            'cuti' => 0,
+            'tidak_hadir' => 0,
+            'dinas' => 0,
+            'lembur' => 0,
+            'terlambat' => 0,
+            'pulang_awal' => 0,
+            'tidak_absen_masuk' => 0,
+            'tidak_absen_pulang' => 0,
+            'belum_presensi' => 0,
+            'tanggal_hadir' => [],
+            'tanggal_izin' => [],
+            'tanggal_sakit' => [],
+            'tanggal_cuti' => [],
+            'tanggal_tidak_hadir' => [],
+            'tanggal_dinas' => [],
+            'tanggal_lembur' => [],
+            'tanggal_terlambat' => [],
+            'tanggal_pulang_awal' => [],
+            'tanggal_tidak_absen_masuk' => [],
+            'tanggal_tidak_absen_pulang' => [],
+            'tanggal_belum_presensi' => [],
+            'bulan' => (string)$bulan,
+            'tahun' => (string)$tahun,
+            'hari_efektif' => $hariEfektif
+        ];
+
+        foreach ($tanggalList as $tanggal) {
+            $carbon = \Carbon\Carbon::parse($tanggal);
+
+            // Skip weekend/libur
+            if ($carbon->isSaturday() || $carbon->isSunday()) continue;
+            if (\App\Models\HariLibur::isHariLibur($pegawai->unitDetailPresensi->unit->id, $carbon->toDateString())) continue;
+
+            $status = null;
+            $dayString = $carbon->format('d');
+
+            // Kumpulkan presensi hari itu (bisa >1 row)
+            $presensiHari = $presensi->filter(function ($p) use ($tanggal) {
+                return $p->waktu_masuk && \Carbon\Carbon::parse($p->waktu_masuk)->format('Y-m-d') === $tanggal;
+            });
+
+            // PRIORITAS:
+            // 1) dinas
+            if ($presensiHari->count() && $presensiHari->where('status_presensi', 'dinas')->count()) {
+                $status = 'dinas';
+                $result['tanggal_dinas'][] = $dayString;
             }
-        }
-
-        // Kalau tidak ada status dari presensi -> cek izin/cuti/sakit
-        if (!$status) {
-            foreach ($izin as $i) {
-                if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
-                    $status = 'izin';
-                    $result['tanggal_izin'][] = $dayString;
-                    break;
+            // 2) lembur / overtime
+            elseif ($presensiHari->count() && $presensiHari->where('overtime', true)->count()) {
+                $status = 'lembur';
+                $result['tanggal_lembur'][] = $dayString;
+            }
+            // 3) jika ada status_masuk bermasalah → gunakan status_masuk (terlambat / tidak_absen_masuk)
+            elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'terlambat')->count()) {
+                $status = 'terlambat';
+                $result['tanggal_terlambat'][] = $dayString;
+            } elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'tidak_absen_masuk')->count()) {
+                $status = 'tidak_absen_masuk';
+                $result['tanggal_tidak_absen_masuk'][] = $dayString;
+            }
+            // 4) kalau tidak ada masalah di masuk, cek status_pulang (pulang_awal / tidak_absen_pulang)
+            elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'pulang_awal')->count()) {
+                $status = 'pulang_awal';
+                $result['tanggal_pulang_awal'][] = $dayString;
+            } elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
+                $status = 'tidak_absen_pulang';
+                $result['tanggal_tidak_absen_pulang'][] = $dayString;
+            }
+            // 5) hadir normal jika ada absen_masuk & absen_pulang
+            else {
+                if (
+                    $presensiHari->count()
+                    && $presensiHari->where('status_masuk', 'absen_masuk')->count()
+                    && $presensiHari->where('status_pulang', 'absen_pulang')->count()
+                ) {
+                    $status = 'hadir';
+                    $result['tanggal_hadir'][] = $dayString;
                 }
             }
-        }
-        if (!$status) {
-            foreach ($cuti as $c) {
-                if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
-                    $status = 'cuti';
-                    $result['tanggal_cuti'][] = $dayString;
-                    break;
+
+            // Kalau tidak ada status dari presensi -> cek izin/cuti/sakit
+            if (!$status) {
+                foreach ($izin as $i) {
+                    if ($tanggal >= $i->tanggal_mulai && $tanggal <= $i->tanggal_selesai) {
+                        $status = 'izin';
+                        $result['tanggal_izin'][] = $dayString;
+                        break;
+                    }
                 }
             }
-        }
-        if (!$status) {
-            foreach ($sakit as $s) {
-                if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
-                    $status = 'sakit';
-                    $result['tanggal_sakit'][] = $dayString;
-                    break;
+            if (!$status) {
+                foreach ($cuti as $c) {
+                    if ($tanggal >= $c->tanggal_mulai && $tanggal <= $c->tanggal_selesai) {
+                        $status = 'cuti';
+                        $result['tanggal_cuti'][] = $dayString;
+                        break;
+                    }
                 }
+            }
+            if (!$status) {
+                foreach ($sakit as $s) {
+                    if ($tanggal >= $s->tanggal_mulai && $tanggal <= $s->tanggal_selesai) {
+                        $status = 'sakit';
+                        $result['tanggal_sakit'][] = $dayString;
+                        break;
+                    }
+                }
+            }
+
+            // Kalau tetap null → bedakan tidak_hadir vs belum_presensi
+            if (!$status) {
+                if ($carbon->lte(now('Asia/Jakarta')->startOfDay())) {
+                    $status = 'tidak_hadir';
+                    $result['tanggal_tidak_hadir'][] = $dayString;
+                } else {
+                    $status = 'belum_presensi';
+                    $result['tanggal_belum_presensi'][] = $dayString;
+                }
+            }
+
+            // Tambah hitungan status utama (satu status per hari)
+            if (isset($result[$status])) {
+                $result[$status]++;
             }
         }
 
-        // Kalau tetap null → bedakan tidak_hadir vs belum_presensi
-        if (!$status) {
-            if ($carbon->lte(now('Asia/Jakarta')->startOfDay())) {
-                $status = 'tidak_hadir';
-                $result['tanggal_tidak_hadir'][] = $dayString;
-            } else {
-                $status = 'belum_presensi';
-                $result['tanggal_belum_presensi'][] = $dayString;
-            }
-        }
-
-        // Tambah hitungan status utama (satu status per hari)
-        if (isset($result[$status])) {
-            $result[$status]++;
-        }
+        return response()->json($result);
     }
-
-    return response()->json($result);
-}
 
 
 
