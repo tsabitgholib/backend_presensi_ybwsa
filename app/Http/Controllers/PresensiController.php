@@ -86,7 +86,7 @@ class PresensiController extends Controller
         ]);
 
         $request->validate([
-            'lokasi' => 'required|array|size:2', // [lat, lng]
+            'lokasi' => 'required|array|size:2',
         ]);
         $now = \Carbon\Carbon::now('Asia/Jakarta');
         $hari = strtolower($now->locale('id')->isoFormat('dddd'));
@@ -205,8 +205,12 @@ class PresensiController extends Controller
                     $waktuMasuk = \Carbon\Carbon::createFromFormat('H:i', $jamMasuk, 'Asia/Jakarta');
                     $batasMasuk = $waktuMasuk->copy()->addMinutes($tolMasuk);
 
-                    if ($now->between($waktuMasuk, $batasMasuk)) {
+                    if ($now->lessThan($waktuMasuk)) {
                         $statusMasuk = 'absen_masuk';
+                        $keteranganMasuk = '';
+                    } elseif ($now->between($waktuMasuk, $batasMasuk)) {
+                        $statusMasuk = 'absen_masuk';
+                        $keteranganMasuk = '';
                     } elseif ($now->greaterThan($batasMasuk) && $now->lessThan($jam12)) {
                         $statusMasuk = 'terlambat';
                         $keteranganMasuk = 'Terlambat absen masuk';
@@ -216,21 +220,23 @@ class PresensiController extends Controller
                 }
             }
 
+
             if (!$statusMasuk) {
                 $statusMasuk = 'tidak_absen_masuk';
                 $keteranganMasuk = 'Tidak absen masuk';
             }
         }
 
-        $statusPresensi = 'hadir';
+        $statusPresensi = $jadwalDinas ? 'dinas' : null;
         $keteranganDinas = null;
 
         if ($jadwalDinas) {
             $statusPresensi = 'dinas';
             $keteranganDinas = $jadwalDinas->keterangan;
-        } elseif (in_array($statusMasuk, ['absen_masuk', 'terlambat'])) {
-            $statusPresensi = 'hadir';
         }
+        // elseif (in_array($statusMasuk, ['absen_masuk', 'terlambat'])) {
+        //     $statusPresensi = 'hadir';
+        // }
 
         // Simpan presensi masuk normal
         $presensi = Presensi::create([
@@ -294,14 +300,10 @@ class PresensiController extends Controller
                 $waktuPulang = \Carbon\Carbon::createFromFormat('H:i', $jamPulang, 'Asia/Jakarta');
                 $batasAwalPulang = $waktuPulang->copy()->subMinutes($tolPulang); // Jam 16:55 jika pulang 17:00, toleransi 5 menit
 
-                // if ($now->lessThan($batasAwalPulang)) {
-                //     return response()->json(['message' => 'Belum waktunya absen pulang'], 400);
-                // }
+                if ($now->lessThan($batasAwalPulang)) {
+                    return response()->json(['message' => 'Belum waktunya absen pulang'], 400);
+                }
 
-                // Logic yang benar:
-                // - Jika pulang sebelum batas awal (16:55) = pulang_awal
-                // - Jika pulang antara batas awal (16:55) sampai waktu pulang (17:00) = absen_pulang
-                // - Jika pulang setelah waktu pulang (17:00) = absen_pulang
                 if ($now->lessThan($waktuPulang)) {
                     $statusPulang = 'pulang_awal';
                     $keteranganPulang = 'Pulang sebelum waktu pulang';
@@ -326,7 +328,7 @@ class PresensiController extends Controller
 
 
         // Tentukan status presensi berdasarkan jadwal dinas
-        $statusPresensi = $this->calculateFinalStatus($presensi->status_masuk, $statusPulang);
+        $statusPresensi = $this->calculateFinalStatus($presensi->status_masuk, $statusPulang, $jadwalDinas);
         $keteranganPulangFinal = $keteranganPulang;
 
         if ($jadwalDinas) {
@@ -360,29 +362,41 @@ class PresensiController extends Controller
         ]);
     }
 
-    private function calculateFinalStatus($statusMasuk, $statusPulang)
+    private function calculateFinalStatus($statusMasuk, $statusPulang, $jadwalDinas = null)
     {
-        // Status yang dianggap hadir
-        $hadirStatuses = \App\Models\Presensi::getHadirStatuses();
-
-        // Status khusus yang tidak dihitung sebagai hadir
-        $specialStatuses = \App\Models\Presensi::getSpecialStatuses();
-
-        // Jika ada status khusus, gunakan status tersebut
-        if (in_array($statusMasuk, $specialStatuses)) {
+        // Override jika ada dinas/izin/sakit/cuti
+        if ($jadwalDinas) {
+            return 'dinas';
+        }
+        $specialOverrides = ['izin', 'sakit', 'cuti'];
+        if (in_array($statusMasuk, $specialOverrides)) {
             return $statusMasuk;
         }
-        if (in_array($statusPulang, $specialStatuses)) {
-            return $statusPulang;
+
+        // Jika status masuk & pulang valid sempurna
+        if ($statusMasuk === 'absen_masuk' && $statusPulang === 'absen_pulang') {
+            return 'hadir';
         }
 
-        // Jika salah satu hadir, maka status akhir adalah hadir
-        if (in_array($statusMasuk, $hadirStatuses) || in_array($statusPulang, $hadirStatuses)) {
-            return \App\Models\Presensi::STATUS_PRESENSI_HADIR;
+        // Jika masuk absen_masuk tapi pulang beda
+        if ($statusMasuk === 'absen_masuk') {
+            if ($statusPulang === 'pulang_awal') {
+                return 'pulang_awal';
+            }
+            if ($statusPulang === 'tidak_absen_pulang' || $statusPulang === null) {
+                return 'tidak_absen_pulang';
+            }
         }
 
-        return \App\Models\Presensi::STATUS_PRESENSI_TIDAK_HADIR;
+        // Jika masuk terlambat tapi pulang absah
+        if ($statusMasuk === 'terlambat' && $statusPulang === 'absen_pulang') {
+            return 'terlambat';
+        }
+
+        // Kalau semuanya gagal, fallback ke tidak_hadir
+        return 'tidak_hadir';
     }
+
 
     // Presensi hari ini (masuk & keluar)
     public function today(Request $request)
@@ -757,6 +771,8 @@ class PresensiController extends Controller
                 'belum_presensi' => 0,
             ];
 
+
+            $hariEfektif = 0;
             for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
                 $carbon = $date->copy();
 
@@ -769,6 +785,7 @@ class PresensiController extends Controller
                     $isHariLibur = \App\Models\HariLibur::isHariLibur($unit->id, $carbon->toDateString());
                     if ($isHariLibur) continue;
                 }
+                $hariEfektif++;
 
                 $tanggal = $carbon->format('Y-m-d');
 
@@ -790,7 +807,13 @@ class PresensiController extends Controller
                     $status = 'tidak_absen_masuk';
                 } elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'pulang_awal')->count()) {
                     $status = 'pulang_awal';
-                } elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
+                } elseif (
+                    $presensiHari->count() &&
+                    (
+                        $presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()
+                        || $presensiHari->whereNull('status_pulang')->count()
+                    )
+                ) {
                     $status = 'tidak_absen_pulang';
                 } else {
                     if (
@@ -845,6 +868,7 @@ class PresensiController extends Controller
             $result[] = array_merge([
                 'bulan' => $bulan,
                 'tahun' => $tahun,
+                'hari_efektif' => $hariEfektif
             ], $agg);
         }
 
@@ -1228,42 +1252,45 @@ class PresensiController extends Controller
 
             // PRIORITAS:
             // 1) dinas
-            if ($presensiHari->count() && $presensiHari->where('status_presensi', 'dinas')->count()) {
+            // 1) dinas
+            if ($presensiHari->where('status_presensi', 'dinas')->count()) {
                 $status = 'dinas';
                 $result['tanggal_dinas'][] = $dayString;
             }
-            // 2) lembur / overtime
-            elseif ($presensiHari->count() && $presensiHari->where('overtime', true)->count()) {
+            // 2) lembur
+            elseif ($presensiHari->where('overtime', true)->count()) {
                 $status = 'lembur';
                 $result['tanggal_lembur'][] = $dayString;
             }
-            // 3) jika ada status_masuk bermasalah → gunakan status_masuk (terlambat / tidak_absen_masuk)
-            elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'terlambat')->count()) {
+            // 3) kalau ada absen_masuk
+            elseif ($presensiHari->where('status_masuk', 'absen_masuk')->count()) {
+                if ($presensiHari->where('status_pulang', 'pulang_awal')->count()) {
+                    $status = 'pulang_awal';
+                    $result['tanggal_pulang_awal'][] = $dayString;
+                } elseif ($presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
+                    $status = 'tidak_absen_pulang';
+                    $result['tanggal_tidak_absen_pulang'][] = $dayString;
+                } elseif ($presensiHari->where('status_pulang', 'absen_pulang')->count()) {
+                    $status = 'hadir';
+                    $result['tanggal_hadir'][] = $dayString;
+                } else {
+                    // status_pulang = null → dianggap tidak_absen_pulang
+                    $status = 'tidak_absen_pulang';
+                    $result['tanggal_tidak_absen_pulang'][] = $dayString;
+                }
+            }
+
+            // 4) kalau status_masuk = terlambat
+            elseif ($presensiHari->where('status_masuk', 'terlambat')->count()) {
                 $status = 'terlambat';
                 $result['tanggal_terlambat'][] = $dayString;
-            } elseif ($presensiHari->count() && $presensiHari->where('status_masuk', 'tidak_absen_masuk')->count()) {
+            }
+            // 5) kalau status_masuk = tidak_absen_masuk
+            elseif ($presensiHari->where('status_masuk', 'tidak_absen_masuk')->count()) {
                 $status = 'tidak_absen_masuk';
                 $result['tanggal_tidak_absen_masuk'][] = $dayString;
             }
-            // 4) kalau tidak ada masalah di masuk, cek status_pulang (pulang_awal / tidak_absen_pulang)
-            elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'pulang_awal')->count()) {
-                $status = 'pulang_awal';
-                $result['tanggal_pulang_awal'][] = $dayString;
-            } elseif ($presensiHari->count() && $presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
-                $status = 'tidak_absen_pulang';
-                $result['tanggal_tidak_absen_pulang'][] = $dayString;
-            }
-            // 5) hadir normal jika ada absen_masuk & absen_pulang
-            else {
-                if (
-                    $presensiHari->count()
-                    && $presensiHari->where('status_masuk', 'absen_masuk')->count()
-                    && $presensiHari->where('status_pulang', 'absen_pulang')->count()
-                ) {
-                    $status = 'hadir';
-                    $result['tanggal_hadir'][] = $dayString;
-                }
-            }
+
 
             // Kalau tidak ada status dari presensi -> cek izin/cuti/sakit
             if (!$status) {
