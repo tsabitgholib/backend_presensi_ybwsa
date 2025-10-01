@@ -16,7 +16,7 @@ class AuthPegawaiController extends Controller
             'no_ktp' => 'required',
             'password' => 'required',
         ]);
-    
+
         $orang = MsOrang::where('no_ktp', $request->no_ktp)->first();
 
         if (!$orang || $request->password !== $orang->no_ktp) {
@@ -38,9 +38,8 @@ class AuthPegawaiController extends Controller
             'message' => 'Login berhasil',
             'token' => $token
         ]);
-
     }
-    
+
 
     public function me(Request $request)
     {
@@ -80,12 +79,12 @@ class AuthPegawaiController extends Controller
         //dd($upk);
 
 
-        
+
         //var_dump($id_orang);
         //var_dump($pegawai->pegawa->id_orang);
         //var_dump($upk);
         //die();
-        
+
 
         $upkName = $upk ? $upk->upk_name : null;
 
@@ -188,11 +187,17 @@ class AuthPegawaiController extends Controller
             if (!empty($unitDetail->lokasi3) && is_array($unitDetail->lokasi3) && count($unitDetail->lokasi3) > 0) {
                 $lokasi_presensi[] = [
                     'unit_detail_id' => $unitDetail->id,
-                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama .' - Area 3',
+                    'nama_lokasi' => $pegawai->pegawai->unitDetailPresensi->unit->nama . ' - Area 3',
                     'lokasi' => $unitDetail->lokasi3,
                     'unit_name' => $pegawai->pegawai->unitDetailPresensi->unit->nama ?? null,
                 ];
             }
+        }
+
+        if ($pegawai->pegawai->profesi == 'Kepala Sekolah') {
+            $kepala_unit = true;
+        } else {
+            $kepala_unit = false;
         }
 
         $response = [
@@ -205,37 +210,38 @@ class AuthPegawaiController extends Controller
             'jenis_kelamin' => $pegawai->jenis_kelamin,
             'no_hp' => $pegawai->no_hp,
             'jabatan' => $upkName,
+            'kepala_unit' => $kepala_unit,
             'shift_detail_id' => $pegawai->pegawai->presensi_shift_detail_id ?? null,
             'unit_detail_id_presensi' => $pegawai->pegawai->presensi_ms_unit_detail_id ?? null,
-                        'shift_detail' => $pegawai->pegawai->shiftDetail ? [
-                        'id' => $pegawai->pegawai->shiftDetail->id,
-                        'shift_id' => $pegawai->pegawai->shiftDetail->shift_id,
-                        'senin_masuk' => $pegawai->pegawai->shiftDetail->senin_masuk,
-                        'senin_pulang' => $pegawai->pegawai->shiftDetail->senin_pulang,
-                        'selasa_masuk' => $pegawai->pegawai->shiftDetail->selasa_masuk,
-                        'selasa_pulang' => $pegawai->pegawai->shiftDetail->selasa_pulang,
-                        'rabu_masuk' => $pegawai->pegawai->shiftDetail->rabu_masuk,
-                        'rabu_pulang' => $pegawai->pegawai->shiftDetail->rabu_pulang,
-                        'kamis_masuk' => $pegawai->pegawai->shiftDetail->kamis_masuk,
-                        'kamis_pulang' => $pegawai->pegawai->shiftDetail->kamis_pulang,
-                        'jumat_masuk' => $pegawai->pegawai->shiftDetail->jumat_masuk,
-                        'jumat_pulang' => $pegawai->pegawai->shiftDetail->jumat_pulang,
-                        'sabtu_masuk' => $pegawai->pegawai->shiftDetail->sabtu_masuk,
-                        'sabtu_pulang' => $pegawai->pegawai->shiftDetail->sabtu_pulang,
-                        'minggu_masuk' => $pegawai->pegawai->shiftDetail->minggu_masuk,
-                        'minggu_pulang' => $pegawai->pegawai->shiftDetail->minggu_pulang,
-                        'toleransi_terlambat' => $pegawai->pegawai->shiftDetail->toleransi_terlambat,
-                        'toleransi_pulang' => $pegawai->pegawai->shiftDetail->toleransi_pulang,
-                        'created_at' => $pegawai->pegawai->shiftDetail->created_at,
-                        'updated_at' => $pegawai->pegawai->shiftDetail->updated_at,
-                        'shift' => $pegawai->pegawai->shiftDetail->shift ? [
-                            'id' => $pegawai->pegawai->shiftDetail->shift->id,
-                            'name' => $pegawai->pegawai->shiftDetail->shift->name,
-                            'unit_id' => $pegawai->pegawai->shiftDetail->shift->unit_id,
-                            'created_at' => $pegawai->pegawai->shiftDetail->shift->created_at,
-                            'updated_at' => $pegawai->pegawai->shiftDetail->shift->updated_at
-                        ] : null
-                    ] : null,
+            'shift_detail' => $pegawai->pegawai->shiftDetail ? [
+                'id' => $pegawai->pegawai->shiftDetail->id,
+                'shift_id' => $pegawai->pegawai->shiftDetail->shift_id,
+                'senin_masuk' => $pegawai->pegawai->shiftDetail->senin_masuk,
+                'senin_pulang' => $pegawai->pegawai->shiftDetail->senin_pulang,
+                'selasa_masuk' => $pegawai->pegawai->shiftDetail->selasa_masuk,
+                'selasa_pulang' => $pegawai->pegawai->shiftDetail->selasa_pulang,
+                'rabu_masuk' => $pegawai->pegawai->shiftDetail->rabu_masuk,
+                'rabu_pulang' => $pegawai->pegawai->shiftDetail->rabu_pulang,
+                'kamis_masuk' => $pegawai->pegawai->shiftDetail->kamis_masuk,
+                'kamis_pulang' => $pegawai->pegawai->shiftDetail->kamis_pulang,
+                'jumat_masuk' => $pegawai->pegawai->shiftDetail->jumat_masuk,
+                'jumat_pulang' => $pegawai->pegawai->shiftDetail->jumat_pulang,
+                'sabtu_masuk' => $pegawai->pegawai->shiftDetail->sabtu_masuk,
+                'sabtu_pulang' => $pegawai->pegawai->shiftDetail->sabtu_pulang,
+                'minggu_masuk' => $pegawai->pegawai->shiftDetail->minggu_masuk,
+                'minggu_pulang' => $pegawai->pegawai->shiftDetail->minggu_pulang,
+                'toleransi_terlambat' => $pegawai->pegawai->shiftDetail->toleransi_terlambat,
+                'toleransi_pulang' => $pegawai->pegawai->shiftDetail->toleransi_pulang,
+                'created_at' => $pegawai->pegawai->shiftDetail->created_at,
+                'updated_at' => $pegawai->pegawai->shiftDetail->updated_at,
+                'shift' => $pegawai->pegawai->shiftDetail->shift ? [
+                    'id' => $pegawai->pegawai->shiftDetail->shift->id,
+                    'name' => $pegawai->pegawai->shiftDetail->shift->name,
+                    'unit_id' => $pegawai->pegawai->shiftDetail->shift->unit_id,
+                    'created_at' => $pegawai->pegawai->shiftDetail->shift->created_at,
+                    'updated_at' => $pegawai->pegawai->shiftDetail->shift->updated_at
+                ] : null
+            ] : null,
             'lokasi_presensi' => $lokasi_presensi,
         ];
 

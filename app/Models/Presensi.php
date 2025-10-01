@@ -89,12 +89,12 @@ class Presensi extends Model
     protected $casts = [
         'lokasi' => 'array',
         'waktu' => 'datetime',
-        // Cast untuk kolom baru
         'lokasi_masuk' => 'array',
         'lokasi_pulang' => 'array',
-        'waktu_masuk' => 'datetime',
-        'waktu_pulang' => 'datetime',
+        'waktu_masuk' => 'datetime:Y-m-d H:i:s',
+        'waktu_pulang' => 'datetime:Y-m-d H:i:s',
     ];
+    
 
     public function pegawai()
     {

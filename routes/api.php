@@ -64,6 +64,8 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::get('pegawai/by-unit-id-presensi', [PegawaiController::class, 'getByUnitIdPresensi']);
     Route::get('pegawai/lokasi-presensi', [PegawaiController::class, 'getLokasiPresensi']);
     Route::get('pegawai/cek-hari-libur', [PegawaiController::class, 'cekHariLibur']);
+    Route::get('pegawai/get-by-kepala-unit', [PegawaiController::class, 'getByKepalaUnit']);
+    
 
     // Shift
     Route::get('shift', [ShiftController::class, 'index']);
@@ -94,6 +96,9 @@ Route::middleware(['auth.jwt'])->group(function () {
     Route::get('presensi/laporan-kehadiran-karyawan/{pegawai_id}', [PresensiController::class, 'getLaporanKehadiranKaryawan']);
     Route::get('presensi/overtime', [PresensiController::class, 'getOvertimePegawai']);
     Route::post('presensi/admin-presensi-pegawai', [PresensiController::class, 'adminPresensiPegawai']);
+    Route::get('presensi/summary-presensi-unit', [PresensiController::class, 'getSummaryPresensiUnit']);
+    Route::get('presensi/history-by-kepala-unit', [PresensiController::class, 'historyByKepalaUnit']);
+    Route::get('presensi/date-and-month-recap-by-kepala-unit', [PresensiController::class, 'rekapPresensiHarianBulananByKepalaUnit']);
 
     // Izin
     Route::get('izin', [\App\Http\Controllers\IzinController::class, 'index']);

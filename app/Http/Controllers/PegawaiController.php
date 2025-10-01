@@ -156,7 +156,6 @@ class PegawaiController extends Controller
             SELECT id FROM unit_tree
         ", [$unitId]);
 
-        // Convert ke array
         $unitIds = collect($unitIds)->pluck('id')->toArray();
 
         $query = DB::table('ms_orang')
@@ -376,4 +375,94 @@ class PegawaiController extends Controller
 
         return response()->json($response);
     }
+
+        public function getByKepalaUnit(Request $request)
+    {
+        $pegawai = $request->get('pegawai');
+
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan'], 401);
+        }
+
+        $pegawai->load([
+            'shiftDetail.shift',
+            'unitDetailPresensi.unit',
+            'pegawai'
+        ]);
+
+        if ($pegawai->pegawai->profesi !== 'Kepala Sekolah') {
+            return response()->json([
+                'message' => 'Anda bukan kepala unit!'
+            ]);
+        }
+
+        $unitId = $pegawai->pegawai->id_unit;
+
+        $unitIds = DB::select("
+            WITH RECURSIVE unit_tree AS (
+                SELECT id, id_parent
+                FROM ms_unit
+                WHERE id = ?
+                UNION ALL
+                SELECT u.id, u.id_parent
+                FROM ms_unit u
+                INNER JOIN unit_tree ut ON u.id_parent = ut.id
+            )
+            SELECT id FROM unit_tree
+        ", [$unitId]);
+
+        $unitIds = collect($unitIds)->pluck('id')->toArray();
+
+        $query = DB::table('ms_orang')
+            ->leftJoin('ms_pegawai', 'ms_orang.id', '=', 'ms_pegawai.id_orang')
+            ->leftJoin('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
+            ->leftJoin('presensi_ms_unit_detail', 'presensi_ms_unit_detail.ms_unit_id', '=', 'ms_unit.id')
+            ->leftJoin('shift_detail', 'ms_pegawai.presensi_shift_detail_id', '=', 'shift_detail.id')
+            ->leftJoin('shift', 'shift_detail.shift_id', '=', 'shift.id')
+            ->select(
+                'ms_orang.id',
+                'ms_orang.no_ktp',
+                DB::raw("TRIM(
+                    CONCAT_WS(' ', ms_orang.gelar_depan, ms_orang.nama,
+                        CASE WHEN ms_orang.gelar_belakang <> '' THEN CONCAT(', ', ms_orang.gelar_belakang) END
+                    )
+                ) AS nama"),
+                'ms_orang.tmpt_lahir',
+                'ms_orang.tgl_lahir',
+                'ms_orang.jenis_kelamin',
+                'ms_orang.alamat_ktp',
+                'ms_orang.no_hp',
+                'ms_unit.nama as nama_unit',
+                'shift.name as nama_shift',
+                'presensi_ms_unit_detail.lokasi as lokasi_presensi'
+            )
+            ->whereIn('ms_pegawai.id_unit', $unitIds);
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('ms_orang.nama', 'like', "%$search%")
+                    ->orWhere('ms_orang.no_ktp', 'like', "%$search%")
+                    ->orWhere('ms_unit.nama', 'like', "%$search%")
+                    ->orWhere('shift.name', 'like', "%$search%");
+            });
+        } else {
+            if ($request->filled('nama')) {
+                $query->where('ms_orang.nama', 'like', '%' . $request->nama . '%');
+            }
+            if ($request->filled('nik')) {
+                $query->where('ms_orang.no_ktp', 'like', '%' . $request->nik . '%');
+            }
+            if ($request->filled('ms_unit')) {
+                $query->where('ms_unit.nama', 'like', '%' . $request->unit . '%');
+            }
+            if ($request->filled('shift')) {
+                $query->where('shift.name', 'like', '%' . $request->shift . '%');
+            }
+        }
+
+        $pegawais = $query->paginate(20);
+        return response()->json($pegawais);
+    }
+
 }
