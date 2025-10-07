@@ -557,7 +557,7 @@ class DashboardController extends Controller
             $sakit       = $presensi->where('status_presensi', 'sakit')->count();
             $cuti        = $presensi->where('status_presensi', 'cuti')->count();
             $dinas       = $presensi->where('status_presensi', 'dinas')->count();
-            $total       = $presensi->count();
+            $total = $hadir + $tidakHadir + $izin + $sakit + $cuti + $dinas;
             $attendanceRate = $total > 0 ? round(($hadir / $total) * 100, 2) : 0;
 
             $trend[] = [

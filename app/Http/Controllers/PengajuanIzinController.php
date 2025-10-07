@@ -37,9 +37,9 @@ class PengajuanIzinController extends Controller
         $unitId = $admin->unit_id;
 
         $pengajuan = PengajuanIzin::query()
-                            ->join('pegawai', 'pengajuan_izin.pegawai_id', '=', 'pegawai.id')
-                ->join('unit_detail', 'unit_detail.id', '=', 'pegawai.unit_detail_id_presensi')
-            ->where('unit_detail.unit_id', $unitId)
+            ->join('ms_pegawai', 'pengajuan_izin.pegawai_id', '=', 'ms_pegawai.id')
+            ->join('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
+            ->where('ms_unit.id', $unitId)
             ->orderBy('pengajuan_izin.id', 'desc')
             ->select('pengajuan_izin.*')->paginate(10);
 
