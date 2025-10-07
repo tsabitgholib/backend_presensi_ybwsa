@@ -19,7 +19,7 @@ class HariLibur extends Model
 
     public function unitDetail()
     {
-        return $this->belongsTo(UnitDetail::class);
+        return $this->belongsTo(UnitDetail::class, 'ms_unit_id');
     }
 
     public function adminUnit()

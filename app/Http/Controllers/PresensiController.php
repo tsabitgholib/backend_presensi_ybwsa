@@ -995,9 +995,12 @@ class PresensiController extends Controller
 
         $no_ktps = $pegawais->pluck('orang.no_ktp');
 
-        $pegawaiMap = $pegawais->mapWithKeys(function ($pegawai) {
-            return [$pegawai->no_ktp => $pegawai->orang];
-        });
+$pegawaiMap = $pegawais->filter(fn($p) => $p->orang)
+    ->mapWithKeys(function ($pegawai) {
+        return [$pegawai->orang->no_ktp => $pegawai->orang];
+    });
+
+        
 
         // Menggunakan format baru - 1 row per hari
         $query = Presensi::whereIn('no_ktp', $no_ktps);

@@ -60,8 +60,8 @@ class AdminUnitHelper
         }
 
         if ($admin->role === 'admin_unit') {
-            $unitDetails = \App\Models\UnitDetail::where('unit_id', $admin->unit_id)->get();
-            $unitDetailIds = $unitDetails->pluck('id')->toArray();
+            $unitDetails = \App\Models\UnitDetail::where('ms_unit_id', $admin->unit_id)->get();
+            $unitDetailIds = $unitDetails->pluck('ms_unit_id')->toArray();
             return ['unit_detail_ids' => $unitDetailIds, 'error' => null];
         }
 

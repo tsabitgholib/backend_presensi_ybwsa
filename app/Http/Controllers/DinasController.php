@@ -201,10 +201,10 @@ class DinasController extends Controller
         }
         $pegawaiIds = $pegawaiIds->unique();
 
-        $pegawais = MsPegawai::whereIn('id', $pegawaiIds)
+        $pegawais = MsPegawai::whereIn('id_orang', $pegawaiIds)
             ->with(['orang'])
             ->get()
-            ->keyBy('id');
+            ->keyBy('id_orang');
 
         $result = [];
         foreach ($jadwalDinas as $jadwal) {
