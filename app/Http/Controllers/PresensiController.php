@@ -2731,12 +2731,15 @@ class PresensiController extends Controller
 
         $unitId = $pegawai->pegawai->id_unit;
 
-        $pegawaiSummary = DB::table('ms_pegawai')
+        $pegawaiSummary = DB::table('ms_pegawai as pg')
+            ->rightJoin('ms_orang as o', 'o.id', '=', 'pg.id_orang')
             ->selectRaw("
-            SUM(CASE WHEN id_hub = 2 THEN 1 ELSE 0 END) AS jumlah_tetap,
-            SUM(CASE WHEN id_hub = 3 THEN 1 ELSE 0 END) AS jumlah_kontrak
+            SUM(CASE WHEN pg.id_hub = 2 THEN 1 ELSE 0 END) AS jumlah_tetap,
+            SUM(CASE WHEN pg.id_hub = 3 THEN 1 ELSE 0 END) AS jumlah_kontrak,
+            SUM(CASE WHEN pg.id_hub NOT IN (2, 3) OR pg.id_hub IS NULL THEN 1 ELSE 0 END) AS jumlah_lain
         ")
-            ->where('id_unit', $unitId)
+            ->where('pg.id_unit', $unitId)
+            ->whereNotNull('o.id')
             ->first();
 
         $presensi = DB::table('presensi as pr')
@@ -2746,15 +2749,22 @@ class PresensiController extends Controller
             ->whereDate('pr.created_at', now()->toDateString())
             ->count();
 
+        $totalPegawai = ($pegawaiSummary->jumlah_tetap ?? 0)
+            + ($pegawaiSummary->jumlah_kontrak ?? 0)
+            + ($pegawaiSummary->jumlah_lain ?? 0);
+
         return response()->json([
             'id_kepala_unit' => $pegawai->id,
             'id_unit' => $unitId,
             'jumlah_tetap' => $pegawaiSummary->jumlah_tetap ?? 0,
             'jumlah_kontrak' => $pegawaiSummary->jumlah_kontrak ?? 0,
-            'total_pegawai' => ($pegawaiSummary->jumlah_tetap ?? 0) + ($pegawaiSummary->jumlah_kontrak ?? 0),
+            'jumlah_lain' => $pegawaiSummary->jumlah_lain ?? 0,
+            'total_pegawai' => $totalPegawai,
             'total_presensi_hari_ini' => $presensi,
         ]);
     }
+
+
 
     public function historyByKepalaUnit(Request $request)
     {
@@ -2857,9 +2867,17 @@ class PresensiController extends Controller
         $bulan   = $request->query('bulan');   // format YYYY-MM
 
         $pegawais = \App\Models\MsPegawai::where('id_unit', $unitId)
+            ->whereNotNull('id_orang')
+            ->whereHas('orang')
             ->with('orang:id,no_ktp,nama')
             ->get(['id', 'id_orang', 'id_unit']);
-        $noKtps = $pegawais->pluck('orang.no_ktp');
+
+        $noKtps = $pegawais
+            ->pluck('orang.no_ktp')
+            ->filter()
+            ->values();
+
+
 
         $makeResult = function () use ($pegawais) {
             return [
@@ -2937,6 +2955,9 @@ class PresensiController extends Controller
                 ->get();
 
             foreach ($pegawais as $pgw) {
+                if (is_null($pgw->id_orang) || !$pgw->orang) {
+                    continue;
+                }
                 $status = null;
                 $namaPegawai = optional($pgw->orang)->nama;
 
