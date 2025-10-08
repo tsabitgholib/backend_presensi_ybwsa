@@ -2884,17 +2884,29 @@ class PresensiController extends Controller
                 'filter' => $tanggal,
                 'rekap'   => [
                     'hadir' => 0,
+                    'pegawai_hadir' => [],
                     'izin' => 0,
+                    'pegawai_izin' => [],
                     'sakit' => 0,
+                    'pegawai_sakit' => [],
                     'cuti' => 0,
+                    'pegawai_cuti' => [],
                     'tidak_hadir' => 0,
+                    'pegawai_tidak_hadir' => [],
                     'dinas' => 0,
+                    'pegawai_dinas' => [],
                     'lembur' => 0,
+                    'pegawai_lembur' => [],
                     'terlambat' => 0,
+                    'pegawai_terlambat' => [],
                     'pulang_awal' => 0,
+                    'pegawai_pulang_awal' => [],
                     'tidak_absen_masuk' => 0,
+                    'pegawai_tidak_absen_masuk' => [],
                     'tidak_absen_pulang' => 0,
+                    'pegawai_tidak_absen_pulang' => [],
                     'belum_presensi' => 0,
+                    'pegawai_belum_presensi' => [],
                     'total_pegawai' => $pegawais->count(),
                 ]
             ];
@@ -2926,6 +2938,8 @@ class PresensiController extends Controller
 
             foreach ($pegawais as $pgw) {
                 $status = null;
+                $namaPegawai = optional($pgw->orang)->nama;
+
                 $presensiHari = $presensis->filter(function ($p) use ($pgw, $tanggal) {
                     return $p->no_ktp === optional($pgw->orang)->no_ktp
                         && $p->waktu_masuk
@@ -2939,6 +2953,8 @@ class PresensiController extends Controller
                 } elseif ($presensiHari->where('status_masuk', 'absen_masuk')->count()) {
                     if ($presensiHari->where('status_pulang', 'pulang_awal')->count()) {
                         $status = 'pulang_awal';
+                    } elseif ($presensiHari->where('status_pulang', '')->count()) {
+                        $status = 'hadir';
                     } elseif ($presensiHari->where('status_pulang', 'tidak_absen_pulang')->count()) {
                         $status = 'tidak_absen_pulang';
                     } elseif ($presensiHari->where('status_pulang', 'absen_pulang')->count()) {
@@ -2972,11 +2988,14 @@ class PresensiController extends Controller
 
                 if (isset($result['rekap'][$status])) {
                     $result['rekap'][$status]++;
+                    $keyNama = 'pegawai_' . $status;
+                    $result['rekap'][$keyNama][] = $namaPegawai ?? 'Tidak diketahui';
                 }
             }
 
             return $result;
         };
+
 
         if ($tanggal) {
             $rekap = $hitungPerHari($tanggal, $pegawais, $noKtps);
