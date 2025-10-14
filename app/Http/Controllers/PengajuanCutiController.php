@@ -38,10 +38,11 @@ class PengajuanCutiController extends Controller
 
         $pengajuan = PengajuanCuti::query()
             ->join('ms_pegawai', 'pengajuan_cuti.pegawai_id', '=', 'ms_pegawai.id')
+            ->join('ms_orang', 'ms_pegawai.id_orang', '=', 'ms_orang.id')
             ->join('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
             ->where('ms_unit.id', $unitId)
             ->orderBy('pengajuan_cuti.id', 'desc')
-            ->select('pengajuan_cuti.*')->paginate(10);
+            ->select('pengajuan_cuti.*', 'ms_orang.nama')->paginate(10);
 
         return response()->json($pengajuan);
     }

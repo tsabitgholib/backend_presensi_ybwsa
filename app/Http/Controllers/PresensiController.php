@@ -299,10 +299,12 @@ class PresensiController extends Controller
             try {
                 $waktuPulang = \Carbon\Carbon::createFromFormat('H:i', $jamPulang, 'Asia/Jakarta');
                 $batasAwalPulang = $waktuPulang->copy()->subMinutes($tolPulang);
+                
+                $batasSiang = Carbon::today()->setHour(12)->setMinute(0)->setSecond(0);
 
-                // if ($now->lessThan($batasAwalPulang)) {
-                //     return response()->json(['message' => 'Belum waktunya absen pulang'], 400);
-                // }
+                if ($now->lessThan($batasSiang)) {
+                    return response()->json(['message' => 'Belum waktunya absen pulang'], 400);
+                }
 
                 if ($now->lessThan($waktuPulang)) {
                     $statusPulang = 'pulang_awal';

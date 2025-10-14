@@ -38,10 +38,11 @@ class PengajuanSakitController extends Controller
 
         $pengajuan = PengajuanSakit::query()
             ->join('ms_pegawai', 'pengajuan_sakit.pegawai_id', '=', 'ms_pegawai.id')
+            ->join('ms_orang', 'ms_pegawai.id_orang', '=', 'ms_orang.id')
             ->join('ms_unit', 'ms_unit.id', '=', 'ms_pegawai.id_unit')
             ->where('ms_unit.id', $unitId)
             ->orderBy('pengajuan_sakit.id', 'desc')
-            ->select('pengajuan_sakit.*')->paginate(10);
+            ->select('pengajuan_sakit.*', 'ms_orang.nama')->paginate(10);
 
         return response()->json($pengajuan);
     }
