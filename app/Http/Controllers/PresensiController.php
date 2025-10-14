@@ -170,17 +170,17 @@ class PresensiController extends Controller
                 'status_masuk' => $statusMasuk,
                 'lokasi_masuk' => $request->lokasi,
                 'keterangan_masuk' => $keteranganMasuk,
-                'status_presensi' => 'tidak_hadir',
+                'status_presensi' => 'tidak_absen_masuk',
             ]);
 
-            // Otomatis dianggap langsung absen pulang (pulang_awal)
-            $presensi->update([
-                'waktu_pulang' => $now,
-                'status_pulang' => 'pulang_awal',
-                'lokasi_pulang' => $request->lokasi,
-                'keterangan_pulang' => 'Absen pulang setelah jam 12 tanpa absen masuk',
-                'status_presensi' => 'tidak_hadir',
-            ]);
+            // // Otomatis dianggap langsung absen pulang (pulang_awal)
+            // $presensi->update([
+            //     'waktu_pulang' => $now,
+            //     'status_pulang' => 'pulang_awal',
+            //     'lokasi_pulang' => $request->lokasi,
+            //     'keterangan_pulang' => 'Absen pulang setelah jam 12 tanpa absen masuk',
+            //     'status_presensi' => 'tidak_absen_masuk',
+            // ]);
 
             return response()->json([
                 'no_ktp' => $presensi->no_ktp,
@@ -188,9 +188,9 @@ class PresensiController extends Controller
                 'tanggal' => $presensi->waktu_masuk->format('Y-m-d'),
                 'waktu_masuk' => $presensi->waktu_masuk->format('H:i:s'),
                 'status_masuk' => $presensi->status_masuk,
-                'waktu_pulang' => $presensi->waktu_pulang->format('H:i:s'),
-                'status_pulang' => $presensi->status_pulang,
-                'keterangan' => $presensi->keterangan_pulang,
+                //'waktu_pulang' => $presensi->waktu_pulang->format('H:i:s'),
+                //'status_pulang' => $presensi->status_pulang,
+                'keterangan' => $presensi->keteranganMasuk,
             ]);
         }
 
@@ -207,7 +207,7 @@ class PresensiController extends Controller
 
                     if ($now->lessThan($waktuMasuk)) {
                         $statusMasuk = 'absen_masuk';
-                        $keteranganMasuk = 'Maasuk tepat waktu';
+                        $keteranganMasuk = 'Masuk tepat waktu';
                     } elseif ($now->between($waktuMasuk, $batasMasuk)) {
                         $statusMasuk = 'absen_masuk';
                         $keteranganMasuk = 'Masuk tepat waktu';
@@ -219,8 +219,6 @@ class PresensiController extends Controller
                     return response()->json(['message' => 'Format jam masuk tidak valid'], 400);
                 }
             }
-
-
             if (!$statusMasuk) {
                 $statusMasuk = 'tidak_absen_masuk';
                 $keteranganMasuk = 'Tidak absen masuk';
