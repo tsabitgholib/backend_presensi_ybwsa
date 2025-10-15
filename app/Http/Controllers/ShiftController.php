@@ -24,7 +24,7 @@ class ShiftController extends Controller
             return [
                 'id' => $shift->id,
                 'name' => $shift->name,
-                'unit_name' => $shift->unit->name ?? null,
+                'unit_name' => $shift->unit->nama ?? null,
                 'created_at' => $shift->created_at,
                 'updated_at' => $shift->updated_at,
                 'shift_detail' => $shift->shiftDetail

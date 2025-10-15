@@ -297,7 +297,7 @@ class PresensiController extends Controller
             try {
                 $waktuPulang = \Carbon\Carbon::createFromFormat('H:i', $jamPulang, 'Asia/Jakarta');
                 $batasAwalPulang = $waktuPulang->copy()->subMinutes($tolPulang);
-                
+
                 $batasSiang = Carbon::today()->setHour(12)->setMinute(0)->setSecond(0);
 
                 if ($now->lessThan($batasSiang)) {
@@ -364,7 +364,6 @@ class PresensiController extends Controller
 
     private function calculateFinalStatus($statusMasuk, $statusPulang, $jadwalDinas = null)
     {
-        // Override jika ada dinas/izin/sakit/cuti
         if ($jadwalDinas) {
             return 'dinas';
         }
@@ -373,12 +372,10 @@ class PresensiController extends Controller
             return $statusMasuk;
         }
 
-        // Jika status masuk & pulang valid sempurna
         if ($statusMasuk === 'absen_masuk' && $statusPulang === 'absen_pulang') {
             return 'hadir';
         }
 
-        // Jika masuk absen_masuk tapi pulang beda
         if ($statusMasuk === 'absen_masuk') {
             if ($statusPulang === 'pulang_awal') {
                 return 'pulang_awal';
@@ -388,12 +385,13 @@ class PresensiController extends Controller
             }
         }
 
-        // Jika masuk terlambat tapi pulang absah
         if ($statusMasuk === 'terlambat' && $statusPulang === 'absen_pulang') {
             return 'terlambat';
         }
 
-        return 'tidak_hadir';
+        if ($statusMasuk === 'tidak_absen_masuk' && $statusPulang === 'absen_pulang') {
+            return 'tidak_absen_masuk';
+        }
     }
 
 
