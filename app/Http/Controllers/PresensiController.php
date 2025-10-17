@@ -389,7 +389,10 @@ class PresensiController extends Controller
             return 'terlambat';
         }
 
-        if ($statusMasuk === 'tidak_absen_masuk' && $statusPulang === 'absen_pulang') {
+        if ($statusMasuk === 'tidak_absen_masuk' && $statusPulang === 'absen_pulang' ) {
+            return 'tidak_absen_masuk';
+        }
+        if ($statusMasuk === 'tidak_absen_masuk' && $statusPulang === 'pulang_awal' ) {
             return 'tidak_absen_masuk';
         }
     }
